@@ -1,40 +1,91 @@
-import { useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+// src/pages/UploadPage.tsx
+import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Upload, CheckCircle2, ArrowRight, RotateCcw } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Upload, FileText, CheckCircle, X, LogIn, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 import { uploadCV } from "@/api/endpoints";
 
 type UploadState = "idle" | "uploading" | "success" | "error" | "unauth";
 
 export default function UploadPage() {
-  const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [state, setState] = useState<UploadState>("idle");
-  const [error, setError] = useState<string | null>(null);
+  const [serverFileName, setServerFileName] = useState<string>("");
   const [cvId, setCvId] = useState<string | number | null>(null);
-  const [filename, setFilename] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { toast } = useToast();
   const nav = useNavigate();
 
-  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0] || null;
-    setError(null);
-    if (!f) return setFile(null);
-    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+  /* ---------- Drag & Drop ---------- */
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const onPick = (file: File | undefined | null) => {
+    if (!file) return;
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
     if (!isPdf) {
-      setFile(null);
-      return setError("Please choose a PDF file.");
+      setUploadedFile(null);
+      setError("Please select a PDF file.");
+      toast({ title: "Invalid file", description: "Only PDF is supported.", variant: "destructive" });
+      return;
     }
-    setFile(f);
+    setUploadedFile(file);
+    setError(null);
   };
 
-  async function doUpload() {
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = Array.from(e.dataTransfer.files);
+    onPick(files[0]);
+  }, []);
+
+  /* ---------- File Dialog via ref ---------- */
+  const openFileDialog = () => {
+    if (state === "uploading") return;
+    fileInputRef.current?.click();
+  };
+
+  const onHiddenInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    onPick(f);
+    // allow re-selecting the same file again later
+    e.currentTarget.value = "";
+  };
+
+  /* ---------- Actions ---------- */
+  const resetUpload = () => {
+    setUploadedFile(null);
+    setError(null);
+    setState("idle");
+    setCvId(null);
+    setServerFileName("");
+  };
+
+  const startQuiz = () => {
+    if (!cvId) return;
+    nav("/quiz", { state: { cvId } });
+  };
+
+  const doUpload = async () => {
     const token = localStorage.getItem("access");
     if (!token) {
       setState("unauth");
       setError("You must be logged in to upload.");
       return;
     }
-    if (!file) {
+    if (!uploadedFile) {
       setError("Please choose a PDF to upload.");
       return;
     }
@@ -42,18 +93,19 @@ export default function UploadPage() {
     setError(null);
 
     try {
-      const res = await uploadCV(file);
-      const returnedId = res?.cv_id ?? res?.id ?? res?.cvId;
-      const returnedName = res?.filename ?? file.name;
-      if (!returnedId) throw new Error("Upload succeeded but no cv_id returned.");
+      const res = await uploadCV(uploadedFile); // tries /cv/upload/, fallback /cv/
+      const id = res?.cv_id ?? res?.id ?? res?.cvId;
+      const name = res?.filename ?? uploadedFile.name;
+      if (!id) throw new Error("Upload succeeded but server did not return cv_id.");
 
-      localStorage.setItem("last_cv_id", String(returnedId));
-      // notify any listeners (Navbar)
-      window.dispatchEvent(new StorageEvent("storage", { key: "last_cv_id", newValue: String(returnedId) }));
+      localStorage.setItem("last_cv_id", String(id));
+      window.dispatchEvent(new StorageEvent("storage", { key: "last_cv_id", newValue: String(id) }));
 
-      setCvId(returnedId);
-      setFilename(returnedName);
+      setCvId(id);
+      setServerFileName(name);
       setState("success");
+
+      toast({ title: "Upload Successful!", description: "Your CV has been uploaded successfully." });
     } catch (e: any) {
       const status = e?.response?.status;
       if (status === 401 || status === 403) {
@@ -68,116 +120,131 @@ export default function UploadPage() {
         "Upload failed.";
       setError(msg);
       setState("error");
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
     }
-  }
-
-  const goQuiz = () => {
-    if (!cvId) return;
-    nav("/quiz", { state: { cvId } });
-  };
-
-  const resetAll = () => {
-    setFile(null);
-    setError(null);
-    setCvId(null);
-    setFilename(null);
-    setState("idle");
   };
 
   return (
-    <div className="container max-w-3xl mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload your CV</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Unauth notice */}
-          {state === "unauth" && (
-            <div className="space-y-3">
-              <div className="text-amber-600 text-sm">
-                You’re not logged in. Please sign in, then try again.
-              </div>
-              <div className="flex gap-3">
-                <Button size="lg" className="gap-2" onClick={() => nav("/login")}>
-                  Go to Login
-                </Button>
-                <Button size="lg" variant="secondary" className="gap-2" onClick={resetAll}>
-                  <RotateCcw className="h-4 w-4" />
-                  Try again
-                </Button>
-              </div>
-            </div>
-          )}
+    <div className="min-h-screen bg-gradient-hero py-8">
+      <div className="container mx-auto px-4 max-w-4xl">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold mb-4">Upload Your Resume</h1>
+          <p className="text-lg text-muted-foreground">
+            Let our AI analyze your skills and create a personalized assessment
+          </p>
+        </div>
 
-          {/* Idle / uploading */}
-          {state !== "success" && state !== "unauth" && (
-            <>
-              <div className="space-y-2">
-                <label className="block text-sm">Choose your PDF</label>
-                <input type="file" accept="application/pdf,.pdf" onChange={onPick} />
-                {file && (
-                  <div className="text-sm text-muted-foreground">
-                    Selected: <strong>{file.name}</strong>
+        {/* Idle or uploading card */}
+        {(state === "idle" || state === "uploading" || (!cvId && uploadedFile)) && (
+          <Card className="shadow-large">
+            <CardContent className="p-8">
+              <div
+                className={`border-2 border-dashed rounded-lg p-12 text-center transition-all ${
+                  isDragging ? "border-primary bg-primary/5 scale-105" : "border-muted-foreground/25 hover:border-primary/50"
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-xl font-semibold mb-2">Drag & drop your resume here</h3>
+                <p className="text-muted-foreground mb-6">or click to browse files</p>
+
+                {/* Hidden input triggered via ref click */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={onHiddenInputChange}
+                  // keep it in DOM but non-visible & non-interactive
+                  style={{ position: "absolute", width: 0, height: 0, opacity: 0, pointerEvents: "none" }}
+                  tabIndex={-1}
+                />
+
+                {/* Button that opens the file dialog */}
+                <div className="inline-flex">
+                  <Button variant="hero" size="lg" className="gap-2" onClick={openFileDialog} disabled={state === "uploading"}>
+                    <Upload className="w-4 h-4" />
+                    {state === "uploading" ? "Uploading…" : "Select Resume"}
+                  </Button>
+                </div>
+
+                {uploadedFile && (
+                  <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground">
+                    <FileText className="w-5 h-5" />
+                    <span>
+                      Selected: <strong>{uploadedFile.name}</strong>
+                    </span>
                   </div>
                 )}
-                <div className="text-xs text-muted-foreground">Supported format: PDF only.</div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <Button
-                  size="lg"
-                  className="gap-2"
-                  onClick={doUpload}
-                  disabled={!file || state === "uploading"}
-                >
-                  {state === "uploading" ? "Uploading…" : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Upload resume
-                    </>
-                  )}
-                </Button>
+                <p className="text-sm text-muted-foreground mt-4">Supports PDF files up to 10MB</p>
 
-                {state === "error" && (
-                  <Button variant="secondary" size="lg" className="gap-2" onClick={resetAll}>
-                    <RotateCcw className="h-4 w-4" />
-                    Try again
+                <div className="mt-6">
+                  <Button
+                    variant="hero"
+                    size="lg"
+                    className="gap-2"
+                    onClick={doUpload}
+                    disabled={!uploadedFile || state === "uploading"}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    {state === "uploading" ? "Uploading…" : "Upload resume"}
                   </Button>
-                )}
+                </div>
+
+                {error && <div className="text-red-600 text-sm mt-4">{error}</div>}
               </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {error && <div className="text-red-600 text-sm">{error}</div>}
-            </>
-          )}
-
-          {/* Success */}
-          {state === "success" && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle2 className="h-5 w-5" />
-                <span className="font-medium">
-                  ✅ CV uploaded successfully{filename ? `: ${filename}` : ""}.
+        {/* Success card */}
+        {state === "success" && (
+          <Card className="shadow-medium animate-fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center space-x-2">
+                  <CheckCircle className="w-5 h-5 text-success" />
+                  <span>Upload Successful!</span>
                 </span>
+                <Button variant="ghost" size="sm" onClick={resetUpload}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2 text-muted-foreground">
+                <FileText className="w-5 h-5" />
+                <span>{serverFileName || uploadedFile?.name}</span>
               </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Button size="lg" className="gap-2" onClick={goQuiz}>
-                  <ArrowRight className="h-4 w-4" />
+              <div className="text-center pt-4">
+                <Button variant="hero" size="lg" className="gap-2" onClick={startQuiz}>
+                  <ArrowRight className="w-4 h-4" />
                   Start Quiz
                 </Button>
-                <Button variant="secondary" size="lg" className="gap-2" onClick={resetAll}>
-                  <Upload className="h-4 w-4" />
-                  Upload another file
-                </Button>
               </div>
+              <div className="text-xs text-muted-foreground text-center">
+                Saved CV ID <code>{String(cvId)}</code> so the Quiz page can auto-generate.
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-              <div className="text-xs text-muted-foreground">
-                Tip: saved CV ID <code>{String(cvId)}</code> so the Quiz page can auto-generate.
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {/* Unauth state */}
+        {state === "unauth" && (
+          <Card className="shadow-medium animate-fade-in mt-6">
+            <CardContent className="p-6 text-center space-y-3">
+              <div className="text-amber-600 text-sm">You’re not logged in. Please sign in and try again.</div>
+              <Button variant="hero" size="lg" className="gap-2" onClick={() => nav("/login")}>
+                <LogIn className="w-4 h-4" />
+                Go to Login
+              </Button>
+              <Button variant="outline" onClick={resetUpload}>Back</Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,59 +1,163 @@
-import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+// src/pages/QuizPage.tsx
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { aiGenerateFromFileSmart, aiGenerateFromCVId } from "@/api/endpoints";
-import { Upload } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { CheckCircle, Clock, ArrowLeft, ArrowRight, Upload as UploadIcon } from "lucide-react";
+import { aiGenerateFromCVId, aiGenerateFromFileSmart, submitAnswers } from "@/api/endpoints";
+import { useNavigate } from "react-router-dom"; // ✅ import this
 
-type QuizState = "idle" | "loading" | "ready" | "error";
+type Question = {
+  id?: number | string;
+  question: string;
+  options?: string[];
+  correctAnswer?: number;   // optional; backend may not return it
+  skill?: string;
+  topic?: string;  
+  category?: "technical" | "soft" | string; // ✅ include category
+};
+
+type QuizState = "generating" | "ready" | "submitting" | "completed" | "error";
 
 export default function QuizPage() {
-  const location = useLocation() as any;
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<QuizState>("idle");
+  const [status, setStatus] = useState<QuizState>("generating");
   const [error, setError] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [cvId] = useState<string | null>(
-    String(location?.state?.cvId ?? localStorage.getItem("last_cv_id") ?? "") || null
-  );
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState<Record<number, number | string>>({});
+  const [timeLeft, setTimeLeft] = useState(10 * 60); // 10 minutes
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const nav = useNavigate(); // ✅ now available
 
-  function extractQuestions(raw: any): any[] {
+  const cvId = useMemo(() => localStorage.getItem("last_cv_id"), []);
+
+  // helper: normalize API shapes
+  function normalize(raw: any): Question[] {
     if (!raw) return [];
-    if (Array.isArray(raw)) return raw;
-    if (Array.isArray(raw?.questions)) return raw.questions;
-    try {
-      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-      if (Array.isArray(parsed)) return parsed;
-      if (Array.isArray(parsed?.questions)) return parsed.questions;
-    } catch {}
-    return [];
+    const arr = Array.isArray(raw) ? raw : raw.questions || [];
+    return arr.map((q: any, i: number) => ({
+      id: q.id ?? i + 1,
+      question: q.question ?? q.prompt ?? q.text ?? String(q),
+      options: Array.isArray(q.options) ? q.options : undefined,
+      correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
+      skill: q.skill ?? q.topic ?? undefined,
+      category: q.category ?? undefined, // ✅ safe
+    }));
   }
 
-  // Auto-generate if cvId exists
   useEffect(() => {
-    if (!cvId) return;
+    let mounted = true;
     (async () => {
-      setStatus("loading");
+      setStatus("generating");
       setError(null);
-      setQuestions([]);
       try {
-        const data = await aiGenerateFromCVId(cvId);
-        const qs = extractQuestions(data);
-        if (!qs.length) {
-          setError("No questions were generated yet. Please try again.");
-          setStatus("error");
-          return;
+        if (cvId) {
+          const data = await aiGenerateFromCVId(cvId);
+          const qs = normalize(data);
+          if (!qs.length) throw new Error("No questions were generated. Please try again.");
+          if (mounted) {
+            setQuestions(qs);
+            setStatus("ready");
+          }
+        } else {
+          // No cvId? allow manual upload flow
+          setStatus("ready");
         }
-        setQuestions(qs);
-        setStatus("ready");
       } catch (e: any) {
         setError(e?.response?.data?.error || e?.message || "Failed to generate questions.");
         setStatus("error");
       }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [cvId]);
 
-  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    if (status !== "ready") return;
+    if (timeLeft <= 0) return;
+    const t = setTimeout(() => setTimeLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [status, timeLeft]);
+
+  const progress = questions.length ? ((current + 1) / questions.length) * 100 : 0;
+
+  const handleAnswerSelect = (val: number | string) => {
+    setAnswers((prev) => ({ ...prev, [current]: val }));
+  };
+
+  const handleNext = () => {
+    if (current < questions.length - 1) setCurrent((i) => i + 1);
+  };
+
+  const handlePrev = () => {
+    if (current > 0) setCurrent((i) => i - 1);
+  };
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, "0")}`;
+  };
+
+  const submit = async () => {
+    setStatus("submitting");
+    try {
+      // Build payload for backend
+      const payload = questions.map((q, idx) => ({
+        question: q.question,
+        answer: answers[idx],
+        correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
+        options: q.options,
+        skill: q.skill,
+        category: q.category, // ✅ type now knows this
+      }));
+
+      await submitAnswers(payload);
+
+      // Compute a quick summary and navigate to /results
+      const total = questions.filter(q => Array.isArray(q.options) && typeof q.correctAnswer === "number").length;
+      const correct = questions.reduce((acc, q, i) => {
+        if (Array.isArray(q.options) && typeof q.correctAnswer === "number" && answers[i] === q.correctAnswer) {
+          return acc + 1;
+        }
+        return acc;
+      }, 0);
+      const overallScore = total > 0 ? Math.round((correct / total) * 100) : 75;
+
+      const perSkill: Record<string, { sum: number; count: number; category: string }> = {};
+      questions.forEach((q, i) => {
+        const skill = q.skill || q.topic || "General";
+        const category = q.category || (skill === "Communication" ? "soft" : "technical"); // ✅ fixed 'const'
+        const hasOpt = Array.isArray(q.options) && typeof q.correctAnswer === "number";
+        const thisScore = hasOpt ? (answers[i] === q.correctAnswer ? 100 : 0) : 70;
+        if (!perSkill[skill]) perSkill[skill] = { sum: 0, count: 0, category };
+        perSkill[skill].sum += thisScore;
+        perSkill[skill].count += 1;
+      });
+      const skills = Object.entries(perSkill).map(([skill, agg]) => ({
+        skill,
+        score: Math.round(agg.sum / Math.max(1, agg.count)),
+        category: agg.category,
+      }));
+
+      nav("/results", {
+        state: {
+          overallScore,
+          skills,
+          answers,
+          questions,
+        },
+      });
+
+      setStatus("completed");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || "Failed to submit answers.");
+      setStatus("error");
+    }
+  };
+
+  const handleLocalPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
@@ -67,97 +171,184 @@ export default function QuizPage() {
   };
 
   const generateFromFile = async () => {
-    if (!pdfFile) {
-      setError("Please choose a PDF to generate questions from.");
-      return;
-    }
-    setStatus("loading");
+    if (!pdfFile) return;
+    setStatus("generating");
     setError(null);
     setQuestions([]);
     try {
       const data = await aiGenerateFromFileSmart(pdfFile);
-      const qs = extractQuestions(data);
-      if (!qs.length) {
-        setError("No questions were generated. Check your server logs.");
-        setStatus("error");
-        return;
-      }
+      const qs = normalize(data);
+      if (!qs.length) throw new Error("No questions were generated from the PDF.");
       setQuestions(qs);
+      setCurrent(0);
+      setAnswers({});
       setStatus("ready");
-    } catch (err: any) {
-      setError(
-        err?.response?.data?.error ||
-          err?.response?.data?.detail ||
-          err?.message ||
-          "Failed to generate questions."
-      );
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || "Generation failed.");
       setStatus("error");
     }
   };
 
+  /* ---------- UI ---------- */
+
+  if (status === "generating") {
+    return (
+      <div className="min-h-screen bg-gradient-hero py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <Card className="shadow-medium">
+            <CardContent className="p-12 text-center">
+              <div className="w-12 h-12 gradient-primary rounded-full mx-auto mb-4 animate-pulse" />
+              <h2 className="text-2xl font-bold mb-2">Generating Questions...</h2>
+              <p className="text-muted-foreground">Please wait while we create your personalized quiz</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "completed") {
+    return (
+      <div className="min-h-screen bg-gradient-hero py-8">
+        <div className="container mx-auto px-4 max-w-2xl">
+          <Card className="shadow-large text-center">
+            <CardContent className="p-12">
+              <CheckCircle className="w-16 h-16 text-success mx-auto mb-6" />
+              <h1 className="text-3xl font-bold mb-4">Quiz Completed!</h1>
+              <p className="text-lg text-muted-foreground mb-8">
+                Great job! Your answers have been submitted.
+              </p>
+              <Button variant="hero" size="lg" onClick={() => nav("/results")}>
+                View Results
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container max-w-3xl mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Generate Quiz from your CV</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Only show file picker if user didn't just upload (no cvId) */}
-          {status !== "ready" && !cvId && (
-            <>
-              <div>
-                <label className="block text-sm mb-2">Upload a PDF CV</label>
-                <div className="flex items-center gap-3">
-                  <input type="file" accept="application/pdf,.pdf" onChange={handlePick} />
-                  {pdfFile && (
-                    <span className="text-sm">
-                      Selected: <strong>{pdfFile.name}</strong>
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <Button onClick={generateFromFile} disabled={!pdfFile || status === "loading"} className="gap-2">
-                  {status === "loading" ? "Generating…" : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Generate Questions
-                    </>
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
-
-          {cvId && status === "loading" && (
-            <div className="text-sm text-muted-foreground">Generating from CV #{cvId}…</div>
-          )}
-
-          {error && <div className="text-red-600 text-sm">{error}</div>}
-
-          {status === "ready" && questions.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-2">Questions</h3>
-              <ol className="list-decimal ml-6 space-y-3">
-                {questions.map((q: any, i: number) => (
-                  <li key={i}>
-                    <div className="font-medium">
-                      {q.question || q.prompt || q.text || String(q)}
-                    </div>
-                    {Array.isArray(q.options) && q.options.length > 0 && (
-                      <ul className="list-disc ml-6 mt-2 space-y-1">
-                        {q.options.map((opt: string, j: number) => (
-                          <li key={j}>{opt}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ol>
+    <div className="min-h-screen bg-gradient-hero py-8">
+      <div className="container mx-auto px-4 max-w-3xl">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Skill Assessment Quiz</h1>
+            <div className="flex items-center space-x-2 text-muted-foreground">
+              <Clock className="w-4 h-4" />
+              <span className="font-mono">{formatTime(timeLeft)}</span>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+          <Progress value={progress} className="h-2" />
+          <p className="text-sm text-muted-foreground mt-2">
+            {questions.length ? <>Question {current + 1} of {questions.length}</> : <>Upload a PDF to begin</>}
+          </p>
+        </div>
+
+        {/* Manual upload when no cvId/questions */}
+        {!cvId && !questions.length && (
+          <Card className="shadow-large mb-8">
+            <CardHeader>
+              <CardTitle>Upload a PDF CV</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-3">
+                <input type="file" accept="application/pdf,.pdf" onChange={handleLocalPick} />
+                {pdfFile && <span className="text-sm">Selected: <strong>{pdfFile.name}</strong></span>}
+              </div>
+              <Button variant="hero" size="lg" className="gap-2" onClick={generateFromFile} disabled={!pdfFile}>
+                <UploadIcon className="w-4 h-4" />
+                Generate from PDF
+              </Button>
+              {error && <div className="text-red-600 text-sm">{error}</div>}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Question Card */}
+        {questions.length > 0 && (
+          <Card className="shadow-large mb-8">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">{questions[current].question}</CardTitle>
+                {questions[current].skill && (
+                  <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full">
+                    {questions[current].skill}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* MCQ options */}
+              {Array.isArray(questions[current].options) && questions[current].options!.length > 0 ? (
+                <div className="space-y-3">
+                  {questions[current].options!.map((opt, idx) => {
+                    const selected = answers[current] === idx;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleAnswerSelect(idx)}
+                        className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
+                          selected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`w-4 h-4 rounded-full border-2 ${
+                              selected ? "border-primary bg-primary" : "border-muted-foreground"
+                            }`}
+                          />
+                          <span>{opt}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Short answer fallback
+                <div className="space-y-3">
+                  <textarea
+                    className="w-full min-h-[120px] rounded-lg border border-border p-3 focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Type your answer here..."
+                    value={typeof answers[current] === "string" ? (answers[current] as string) : ""}
+                    onChange={(e) => handleAnswerSelect(e.target.value)}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Nav */}
+        {questions.length > 0 && (
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={handlePrev} disabled={current === 0}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Previous
+            </Button>
+
+            {current === questions.length - 1 ? (
+              <Button
+                variant="hero"
+                onClick={submit}
+                disabled={answers[current] === undefined || status === "submitting"}
+              >
+                {status === "submitting" ? "Submitting…" : "Submit Quiz"}
+              </Button>
+            ) : (
+              <Button variant="hero" onClick={handleNext} disabled={answers[current] === undefined}>
+                Next
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            )}
+          </div>
+        )}
+
+        {status === "error" && error && <div className="text-red-600 text-sm mt-4">{error}</div>}
+      </div>
     </div>
   );
 }
