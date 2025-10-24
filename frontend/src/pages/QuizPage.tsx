@@ -1,16 +1,20 @@
+// src/pages/QuizPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle, Clock, ArrowLeft, ArrowRight, Upload as UploadIcon } from "lucide-react";
 import { aiGenerateFromCVId, aiGenerateFromFileSmart, submitAnswers } from "@/api/endpoints";
+import { useNavigate } from "react-router-dom"; // ✅ import this
 
 type Question = {
   id?: number | string;
   question: string;
   options?: string[];
-  correctAnswer?: number; // optional; your backend may not return it
+  correctAnswer?: number;   // optional; backend may not return it
   skill?: string;
+  topic?: string;  
+  category?: "technical" | "soft" | string; // ✅ include category
 };
 
 type QuizState = "generating" | "ready" | "submitting" | "completed" | "error";
@@ -23,10 +27,11 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState<Record<number, number | string>>({});
   const [timeLeft, setTimeLeft] = useState(10 * 60); // 10 minutes
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const nav = useNavigate(); // ✅ now available
 
   const cvId = useMemo(() => localStorage.getItem("last_cv_id"), []);
 
-  // helper: normalize various API shapes into {question, options?}
+  // helper: normalize API shapes
   function normalize(raw: any): Question[] {
     if (!raw) return [];
     const arr = Array.isArray(raw) ? raw : raw.questions || [];
@@ -36,6 +41,7 @@ export default function QuizPage() {
       options: Array.isArray(q.options) ? q.options : undefined,
       correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
       skill: q.skill ?? q.topic ?? undefined,
+      category: q.category ?? undefined, // ✅ safe
     }));
   }
 
@@ -81,7 +87,7 @@ export default function QuizPage() {
   };
 
   const handleNext = () => {
-    if (current < (questions.length - 1)) setCurrent((i) => i + 1);
+    if (current < questions.length - 1) setCurrent((i) => i + 1);
   };
 
   const handlePrev = () => {
@@ -92,17 +98,58 @@ export default function QuizPage() {
     const m = Math.floor(s / 60);
     const r = s % 60;
     return `${m}:${String(r).padStart(2, "0")}`;
-    };
+  };
 
   const submit = async () => {
     setStatus("submitting");
     try {
-      // Transform to array the backend expects. If you want IDs, add them here.
+      // Build payload for backend
       const payload = questions.map((q, idx) => ({
         question: q.question,
         answer: answers[idx],
+        correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
+        options: q.options,
+        skill: q.skill,
+        category: q.category, // ✅ type now knows this
       }));
+
       await submitAnswers(payload);
+
+      // Compute a quick summary and navigate to /results
+      const total = questions.filter(q => Array.isArray(q.options) && typeof q.correctAnswer === "number").length;
+      const correct = questions.reduce((acc, q, i) => {
+        if (Array.isArray(q.options) && typeof q.correctAnswer === "number" && answers[i] === q.correctAnswer) {
+          return acc + 1;
+        }
+        return acc;
+      }, 0);
+      const overallScore = total > 0 ? Math.round((correct / total) * 100) : 75;
+
+      const perSkill: Record<string, { sum: number; count: number; category: string }> = {};
+      questions.forEach((q, i) => {
+        const skill = q.skill || q.topic || "General";
+        const category = q.category || (skill === "Communication" ? "soft" : "technical"); // ✅ fixed 'const'
+        const hasOpt = Array.isArray(q.options) && typeof q.correctAnswer === "number";
+        const thisScore = hasOpt ? (answers[i] === q.correctAnswer ? 100 : 0) : 70;
+        if (!perSkill[skill]) perSkill[skill] = { sum: 0, count: 0, category };
+        perSkill[skill].sum += thisScore;
+        perSkill[skill].count += 1;
+      });
+      const skills = Object.entries(perSkill).map(([skill, agg]) => ({
+        skill,
+        score: Math.round(agg.sum / Math.max(1, agg.count)),
+        category: agg.category,
+      }));
+
+      nav("/results", {
+        state: {
+          overallScore,
+          skills,
+          answers,
+          questions,
+        },
+      });
+
       setStatus("completed");
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Failed to submit answers.");
@@ -142,7 +189,7 @@ export default function QuizPage() {
     }
   };
 
-  /* ---------- UI States ---------- */
+  /* ---------- UI ---------- */
 
   if (status === "generating") {
     return (
@@ -152,9 +199,7 @@ export default function QuizPage() {
             <CardContent className="p-12 text-center">
               <div className="w-12 h-12 gradient-primary rounded-full mx-auto mb-4 animate-pulse" />
               <h2 className="text-2xl font-bold mb-2">Generating Questions...</h2>
-              <p className="text-muted-foreground">
-                Please wait while we create your personalized quiz
-              </p>
+              <p className="text-muted-foreground">Please wait while we create your personalized quiz</p>
             </CardContent>
           </Card>
         </div>
@@ -173,8 +218,9 @@ export default function QuizPage() {
               <p className="text-lg text-muted-foreground mb-8">
                 Great job! Your answers have been submitted.
               </p>
-              {/* Link to results page if you have one */}
-              {/* <Button asChild variant="hero" size="lg"><Link to="/results">View Results</Link></Button> */}
+              <Button variant="hero" size="lg" onClick={() => nav("/results")}>
+                View Results
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -200,7 +246,7 @@ export default function QuizPage() {
           </p>
         </div>
 
-        {/* If no cvId and no questions yet: allow manual upload */}
+        {/* Manual upload when no cvId/questions */}
         {!cvId && !questions.length && (
           <Card className="shadow-large mb-8">
             <CardHeader>
@@ -225,9 +271,7 @@ export default function QuizPage() {
           <Card className="shadow-large mb-8">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">
-                  {questions[current].question}
-                </CardTitle>
+                <CardTitle className="text-lg">{questions[current].question}</CardTitle>
                 {questions[current].skill && (
                   <span className="text-sm bg-primary/10 text-primary px-3 py-1 rounded-full">
                     {questions[current].skill}
@@ -264,7 +308,7 @@ export default function QuizPage() {
                   })}
                 </div>
               ) : (
-                // Fallback: short answer textbox if no options provided
+                // Short answer fallback
                 <div className="space-y-3">
                   <textarea
                     className="w-full min-h-[120px] rounded-lg border border-border p-3 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -278,7 +322,7 @@ export default function QuizPage() {
           </Card>
         )}
 
-        {/* Navigation */}
+        {/* Nav */}
         {questions.length > 0 && (
           <div className="flex justify-between">
             <Button variant="outline" onClick={handlePrev} disabled={current === 0}>
@@ -287,7 +331,11 @@ export default function QuizPage() {
             </Button>
 
             {current === questions.length - 1 ? (
-              <Button variant="hero" onClick={submit} disabled={answers[current] === undefined || status === "submitting"}>
+              <Button
+                variant="hero"
+                onClick={submit}
+                disabled={answers[current] === undefined || status === "submitting"}
+              >
                 {status === "submitting" ? "Submitting…" : "Submit Quiz"}
               </Button>
             ) : (
@@ -299,10 +347,7 @@ export default function QuizPage() {
           </div>
         )}
 
-        {/* Error (non-blocking) */}
-        {status === "error" && error && (
-          <div className="text-red-600 text-sm mt-4">{error}</div>
-        )}
+        {status === "error" && error && <div className="text-red-600 text-sm mt-4">{error}</div>}
       </div>
     </div>
   );
