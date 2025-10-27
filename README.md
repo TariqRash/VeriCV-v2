@@ -42,19 +42,21 @@ VeriCV is an AI-powered platform that analyzes resumes and generates personalize
 ## Project Structure
 
 VeriCV-v2/
-├── backend/          # Django application
-│   ├── ai/           # AI analysis logic
-│   ├── cv/           # CV management
-│   ├── quiz/         # Quiz generation
-│   ├── feedback/     # Feedback storage
-│   ├── users/        # User authentication
-│   └── core/         # Django settings
-├── frontend/         # React application
+├── backend/              # Django backend application
+│   ├── ai/               # Core AI logic for CV analysis
+│   ├── cv/               # CV creation and management modules
+│   ├── quiz/             # Automated quiz/question generation
+│   ├── feedback/         # Feedback collection and storage
+│   ├── users/            # Authentication and user management
+│   └── core/             # Global settings and Django configuration
+│
+├── frontend/             # React frontend application
 │   └── src/
-│       ├── pages/    # React pages
-│       ├── components/ # UI components
-│       └── api/      # API client
-└── deploy.sh         # Deployment script
+│       ├── pages/        # Application pages and routes
+│       ├── components/   # Reusable UI components
+│       └── api/          # API client and service handlers
+│
+└── deploy.sh             # Deployment automation script
 
 ## Local Development
 
