@@ -5,7 +5,6 @@ VeriCV is an AI-powered platform that analyzes resumes and generates personalize
 ## Live Demo
 
 🌐 **Website:** https://vericv.app  
-🔧 **Admin Panel:** https://vericv.app/admin/
 
 ## Features
 
@@ -41,6 +40,9 @@ VeriCV is an AI-powered platform that analyzes resumes and generates personalize
 
 ## Project Structure
 
+## 📁 Project Structure
+
+```text
 VeriCV-v2/
 ├── backend/              # Django backend application
 │   ├── ai/               # Core AI logic for CV analysis
@@ -57,6 +59,7 @@ VeriCV-v2/
 │       └── api/          # API client and service handlers
 │
 └── deploy.sh             # Deployment automation script
+
 
 ## Local Development
 
