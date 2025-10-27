@@ -75,7 +75,13 @@ Return ONLY pure JSON:
 Do NOT include markdown or extra text.
 """
 
-    data = {"model": "groq/compound", "messages": [{"role": "user", "content": prompt}]}
+    data = {
+    "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "messages": [{"role": "user", "content": prompt}],
+    "temperature": 0.8,
+    "max_tokens": 2500,
+    "top_p": 0.9
+}
 
     response = requests.post(url, headers=headers, json=data, timeout=45)
 
@@ -128,8 +134,13 @@ Write feedback that:
 - Encourages and motivates the candidate.
 """
 
-    data = {"model": "groq/compound-mini", "messages": [{"role": "user", "content": prompt}]}
-
+    data = {
+    "model": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "messages": [{"role": "user", "content": prompt}],
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "top_p": 0.9
+}
     response = requests.post(url, headers=headers, json=data, timeout=30)
     if response.status_code == 200:
         return response.json()["choices"][0]["message"]["content"]
