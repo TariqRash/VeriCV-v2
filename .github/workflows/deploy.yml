@@ -1,0 +1,80 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to VeriCV Server
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh $SSH_USER@$SSH_HOST << 'ENDSSH'
+            set -e
+            echo "🚀 Starting deployment..."
+            
+            cd /home/VeriCV
+            
+            # Pull latest code
+            echo "📥 Pulling latest code..."
+            git pull origin main
+            
+            # Backend updates
+            echo "🔧 Updating backend..."
+            source venv/bin/activate
+            pip install -r backend/requirements.txt --quiet
+            
+            cd backend
+            python manage.py migrate --noinput
+            python manage.py collectstatic --noinput
+            cd ..
+            
+            # Frontend updates
+            echo "🎨 Building frontend..."
+            cd frontend
+            npm install --silent
+            npm run build
+            cd ..
+            
+            # Restart services
+            echo "♻️  Restarting services..."
+            sudo systemctl restart vericv
+            sudo systemctl reload nginx
+            
+            # Health check
+            echo "🏥 Health check..."
+            sleep 3
+            curl -f http://127.0.0.1:8000/api/health || echo "⚠️  Backend health check failed"
+            
+            echo "✅ Deployment completed!"
+          ENDSSH
+      
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Deployment successful!"
+          else
+            echo "❌ Deployment failed!"
+          fi
