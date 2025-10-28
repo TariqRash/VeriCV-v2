@@ -1,4 +1,4 @@
-import { Mail, Github, LinkedinIcon } from "lucide-react";
+import { Github, LinkedinIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Footer = () => {
@@ -16,26 +16,20 @@ const Footer = () => {
             </span>
           </div>
 
-          {/* Contact & Social */}
-          <div className="flex items-center space-x-6">
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              <Mail className="w-4 h-4" />
-              <span>contact@vericv.com</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <a
-                href="#"
-                className="text-muted-foreground hover:text-primary transition-smooth"
-              >
-                <Github className="w-5 h-5" />
-              </a>
-              <Link
-                to="/team"
-                className="text-muted-foreground hover:text-primary transition-smooth"
-              >
-                <LinkedinIcon className="w-5 h-5" />
-              </Link>
-            </div>
+          {/* Social Icons */}
+          <div className="flex items-center space-x-3">
+            <Link
+              to="/team"
+              className="text-muted-foreground hover:text-primary transition-smooth"
+            >
+              <Github className="w-5 h-5" />
+            </Link>
+            <Link
+              to="/team"
+              className="text-muted-foreground hover:text-primary transition-smooth"
+            >
+              <LinkedinIcon className="w-5 h-5" />
+            </Link>
           </div>
         </div>
       </div>
