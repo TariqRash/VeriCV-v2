@@ -45,7 +45,7 @@ export default function SignUp() {
       // ✅ 2) Auto-login after successful registration
       const res = await login(username, password);
       if (res?.access) {
-        nav("/dashboard");
+        nav("/");
       } else {
         setError("Registered but auto-login failed. Please sign in.");
       }
