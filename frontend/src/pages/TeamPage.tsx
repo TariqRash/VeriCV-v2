@@ -1,31 +1,29 @@
-import { Linkedin, Github, Mail } from "lucide-react";
+import { Linkedin, Github } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const TeamPage = () => {
   const team = [
     {
       name: "Danah Alshehri",
-      role: "Frontend & Integration Developer",
-      bio: "-",
-      linkedin: "https://www.linkedin.com/in/danah-alshehri-a26463217?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app",
+      role: "Frontend Developer",
+      bio: "",
+      linkedin:
+        "https://www.linkedin.com/in/danah-alshehri-a26463217?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app",
       github: "https://github.com/d-alshehri",
-      email: "danah.kalshehri@gmail.com",
     },
     {
-      name: "-",
-      role: "-",
-      bio: "-",
-      linkedin: "-",
-      github: "-",
-      email: "-",
+      name: "Leen Alsaleh",
+      role: "AI Engineer",
+      bio: "",
+      linkedin: "https://www.linkedin.com/in/leen-alsaleh-112bb3216/",
+      github: "https://github.com/Leen2025",
     },
     {
-      name: "-",
-      role: "-",
-      bio: "-",
-      linkedin: "-",
-      github: "-",
-      email: "-",
+      name: "Haneen Aldawood",
+      role: "Backend Developer",
+      bio: "",
+      linkedin: "https://www.linkedin.com/in/haneen-aldawood-069778353?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=ios_app",
+      github: "https://github.com/hyvuz",
     },
   ];
 
@@ -60,6 +58,8 @@ const TeamPage = () => {
                   <div className="flex items-center gap-3">
                     <a
                       href={member.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-primary transition-smooth"
                       aria-label={`${member.name}'s LinkedIn`}
                     >
@@ -67,17 +67,12 @@ const TeamPage = () => {
                     </a>
                     <a
                       href={member.github}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-muted-foreground hover:text-primary transition-smooth"
                       aria-label={`${member.name}'s GitHub`}
                     >
                       <Github className="w-5 h-5" />
-                    </a>
-                    <a
-                      href={`mailto:${member.email}`}
-                      className="text-muted-foreground hover:text-primary transition-smooth"
-                      aria-label={`Email ${member.name}`}
-                    >
-                      <Mail className="w-5 h-5" />
                     </a>
                   </div>
                 </CardContent>
