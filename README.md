@@ -42,7 +42,7 @@ VeriCV is an AI-powered platform that analyzes resumes and generates personalize
 
 ## 📁 Project Structure
 
-```text
+\`\`\`text
 VeriCV-v2/
 ├── backend/              # Django backend application
 │   ├── ai/               # Core AI logic for CV analysis

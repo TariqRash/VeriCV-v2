@@ -33,7 +33,7 @@
 
 ### Step 1: Clone the Repository
 
-```bash
+\`\`\`bash
 # Navigate to home directory
 cd /home
 
@@ -42,17 +42,17 @@ git clone https://github.com/d-alshehri/VeriCV-v2.git VeriCV
 
 # Enter the project directory
 cd VeriCV
-```
+\`\`\`
 
 ### Step 2: Install System Dependencies
 
-```bash
+\`\`\`bash
 # Update system packages
 sudo apt-get update
 
 # Install required system packages
 sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils postgresql-client libpq-dev python3-venv python3-pip nginx
-```
+\`\`\`
 
 **What these packages do:**
 - `tesseract-ocr` - OCR engine to read text from images/PDFs
@@ -66,7 +66,7 @@ sudo apt-get install -y tesseract-ocr tesseract-ocr-eng poppler-utils postgresql
 
 ### Step 3: Create Python Virtual Environment
 
-```bash
+\`\`\`bash
 # Make sure you're in the project directory
 cd /home/VeriCV
 
@@ -84,7 +84,7 @@ pip install -r backend/requirements.txt
 
 # Install additional production packages
 pip install psycopg2-binary gunicorn
-```
+\`\`\`
 
 **What this does:**
 - Creates an isolated Python environment
@@ -98,14 +98,14 @@ You need to create TWO `.env` files with your configuration.
 
 #### Backend Environment File
 
-```bash
+\`\`\`bash
 # Create the backend .env file
 nano /home/VeriCV/backend/.env
-```
+\`\`\`
 
 **Copy and paste this content** (replace with your actual values):
 
-```env
+\`\`\`env
 # Django Secret Key (generate a new one for production)
 SECRET_KEY=your-secret-key-here
 
@@ -128,29 +128,29 @@ CORS_ALLOWED_ORIGINS=https://vericv.app,http://104.248.136.7
 
 # Groq AI API Key
 GROQ_API_KEY=your-groq-api-key
-```
+\`\`\`
 
 Save: Press `Ctrl+X`, then `Y`, then `Enter`
 
 #### Frontend Environment File
 
-```bash
+\`\`\`bash
 # Create the frontend .env file
 nano /home/VeriCV/frontend/.env
-```
+\`\`\`
 
 **Copy and paste this content:**
 
-```env
+\`\`\`env
 VITE_API_URL=https://vericv.app/api
 VITE_API_BASE_URL=https://vericv.app
-```
+\`\`\`
 
 Save: Press `Ctrl+X`, then `Y`, then `Enter`
 
 ### Step 5: Setup Database
 
-```bash
+\`\`\`bash
 # Navigate to backend directory
 cd /home/VeriCV/backend
 
@@ -168,7 +168,7 @@ python manage.py createsuperuser
 
 # Collect static files for production
 python manage.py collectstatic --noinput
-```
+\`\`\`
 
 **What this does:**
 - Creates database tables based on Django models
@@ -177,7 +177,7 @@ python manage.py collectstatic --noinput
 
 ### Step 6: Build Frontend
 
-```bash
+\`\`\`bash
 # Navigate to frontend directory
 cd /home/VeriCV/frontend
 
@@ -186,7 +186,7 @@ npm install
 
 # Build production version of frontend
 npm run build
-```
+\`\`\`
 
 **What this does:**
 - Installs all JavaScript dependencies
@@ -194,7 +194,7 @@ npm run build
 
 ### Step 7: Start Services
 
-```bash
+\`\`\`bash
 # Start the VeriCV backend service
 sudo systemctl start vericv
 
@@ -204,7 +204,7 @@ sudo systemctl start nginx
 # Enable services to start on boot
 sudo systemctl enable vericv
 sudo systemctl enable nginx
-```
+\`\`\`
 
 ---
 
@@ -239,13 +239,13 @@ sudo systemctl enable nginx
 
 When you push new code to GitHub and want to update the server we will use it , as pipe line between github Main (Production branch ) 
 
-```bash
+\`\`\`bash
 # Navigate to project directory
 cd /home/VeriCV
 
 # Run the deployment script
 ./deploy.sh
-```
+\`\`\`
 
 **The deploy script automatically:**
 1. Pulls latest code from GitHub
@@ -263,7 +263,7 @@ cd /home/VeriCV
 
 ### Backend Commands
 
-```bash
+\`\`\`bash
 # Restart the backend service
 sudo systemctl restart vericv
 
@@ -278,21 +278,21 @@ tail -50 /var/log/vericv-error.log
 
 # Follow backend logs in real-time
 sudo journalctl -u vericv -f
-```
+\`\`\`
 
 ### Frontend Commands
 
-```bash
+\`\`\`bash
 # Rebuild frontend
 cd /home/VeriCV/frontend && npm run build
 
 # Install new frontend dependencies
 cd /home/VeriCV/frontend && npm install
-```
+\`\`\`
 
 ### Database Commands
 
-```bash
+\`\`\`bash
 # Navigate to backend directory
 cd /home/VeriCV/backend
 
@@ -310,11 +310,11 @@ python manage.py shell
 
 # Create database backup
 pg_dump -U django django > backup.sql
-```
+\`\`\`
 
 ### Nginx Commands
 
-```bash
+\`\`\`bash
 # Reload Nginx configuration
 sudo systemctl reload nginx
 
@@ -329,23 +329,23 @@ sudo tail -50 /var/log/nginx/access.log
 
 # Restart Nginx
 sudo systemctl restart nginx
-```
+\`\`\`
 
 ### SSL Certificate Renewal
 
-```bash
+\`\`\`bash
 # Renew Let's Encrypt SSL certificate
 sudo certbot renew
 
 # Test renewal process
 sudo certbot renew --dry-run
-```
+\`\`\`
 
 ---
 
 ## 🏗️ Architecture
 
-```
+\`\`\`
 Internet
    ↓
 Nginx (Port 443/80)
@@ -356,7 +356,7 @@ Nginx (Port 443/80)
        Django REST API
           ↓
     PostgreSQL (localhost:5432)
-```
+\`\`\`
 
 **How it works:**
 1. Users access https://vericv.app
@@ -379,7 +379,7 @@ https://github.com/d-alshehri/VeriCV-2
 ### Common Issues
 
 **Backend won't start:**
-```bash
+\`\`\`bash
 # Check logs
 sudo journalctl -u vericv -n 50
 
@@ -387,25 +387,25 @@ sudo journalctl -u vericv -n 50
 # - Check .env file exists and is correct
 # - Verify database is running
 # - Check virtual environment is activated
-```
+\`\`\`
 
 **Frontend not loading:**
-```bash
+\`\`\`bash
 # Rebuild frontend
 cd /home/VeriCV/frontend
 npm run build
 
 # Reload Nginx
 sudo systemctl reload nginx
-```
+\`\`\`
 
 **Database connection error:**
-```bash
+\`\`\`bash
 # Check PostgreSQL is running
 sudo systemctl status postgresql
 
 # Verify database credentials in .env file
-```
+\`\`\`
 
 ---
 
