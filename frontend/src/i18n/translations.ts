@@ -12,6 +12,42 @@ export const translations = {
       signUp: "Sign Up",
       logout: "Logout",
     },
+    // Auth Pages
+    auth: {
+      signIn: {
+        title: "Welcome Back",
+        subtitle: "Sign in to continue your journey",
+        username: "Username",
+        password: "Password",
+        button: "Sign In",
+        loading: "Signing in...",
+        noAccount: "Don't have an account?",
+        signUpLink: "Sign Up",
+        error: {
+          empty: "Please enter your username and password",
+          invalid: "Invalid login credentials",
+          failed: "Login failed. Please check your credentials.",
+        },
+      },
+      signUp: {
+        title: "Create Account",
+        subtitle: "Join VeriCV and start your career journey",
+        name: "Full Name",
+        username: "Username",
+        email: "Email",
+        password: "Password",
+        confirm: "Confirm Password",
+        button: "Sign Up",
+        loading: "Creating account...",
+        hasAccount: "Already have an account?",
+        signInLink: "Sign In",
+        error: {
+          empty: "Please fill all fields",
+          mismatch: "Passwords do not match",
+          failed: "Registration failed. Please try again.",
+        },
+      },
+    },
     // Landing Page
     landing: {
       hero: {
@@ -182,6 +218,42 @@ export const translations = {
       signIn: "تسجيل الدخول",
       signUp: "إنشاء حساب",
       logout: "تسجيل الخروج",
+    },
+    // Auth Pages
+    auth: {
+      signIn: {
+        title: "مرحباً بعودتك",
+        subtitle: "سجل الدخول لمتابعة رحلتك",
+        username: "اسم المستخدم",
+        password: "كلمة المرور",
+        button: "تسجيل الدخول",
+        loading: "جاري تسجيل الدخول...",
+        noAccount: "ليس لديك حساب؟",
+        signUpLink: "إنشاء حساب",
+        error: {
+          empty: "يرجى إدخال اسم المستخدم وكلمة المرور",
+          invalid: "بيانات الدخول غير صحيحة",
+          failed: "فشل تسجيل الدخول. يرجى التحقق من بياناتك",
+        },
+      },
+      signUp: {
+        title: "إنشاء حساب جديد",
+        subtitle: "انضم إلى VeriCV وابدأ رحلتك المهنية",
+        name: "الاسم الكامل",
+        username: "اسم المستخدم",
+        email: "البريد الإلكتروني",
+        password: "كلمة المرور",
+        confirm: "تأكيد كلمة المرور",
+        button: "إنشاء حساب",
+        loading: "جاري إنشاء الحساب...",
+        hasAccount: "لديك حساب بالفعل؟",
+        signInLink: "تسجيل الدخول",
+        error: {
+          empty: "يرجى ملء جميع الحقول",
+          mismatch: "كلمات المرور غير متطابقة",
+          failed: "فشل التسجيل. يرجى المحاولة مرة أخرى",
+        },
+      },
     },
     // Landing Page
     landing: {
