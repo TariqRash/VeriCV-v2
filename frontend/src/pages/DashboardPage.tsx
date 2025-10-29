@@ -16,6 +16,7 @@ type Assessment = {
   score: number
   skills: string[]
   status: string
+  feedback?: string
 }
 
 const DashboardPage = () => {
@@ -34,40 +35,54 @@ const DashboardPage = () => {
       try {
         setLoading(true)
 
-        // Fetch quiz results
         const { data: results } = await api.get("quiz/results/")
 
         if (results && results.length > 0) {
-          const formattedAssessments = results.map((result: any) => ({
-            id: result.id,
-            date: result.completed_at || result.created_at,
-            title: result.quiz?.title || "Assessment",
-            score: result.score || 0,
-            skills: result.skills?.map((s: any) => s.skill || s) || [],
-            status: "completed",
-          }))
+          const formattedAssessments = results.map((result: any) => {
+            let skills: string[] = []
+
+            // Try to extract skills from answers
+            if (result.answers && Array.isArray(result.answers)) {
+              skills = result.answers.map((ans: any) => ans.skill).filter((s: string) => s)
+            }
+
+            // Fallback to quiz questions if available
+            if (skills.length === 0 && result.quiz?.questions) {
+              skills = result.quiz.questions.map((q: any) => q.skill || q.topic).filter((s: string) => s)
+            }
+
+            return {
+              id: result.id,
+              date: result.completed_at || result.created_at,
+              title: result.quiz?.title || result.quiz_title || "Assessment",
+              score: Math.round(result.score || 0),
+              skills: [...new Set(skills)], // Remove duplicates
+              status: "completed",
+              feedback: result.feedback?.content,
+            }
+          })
 
           setAssessments(formattedAssessments)
 
-          // Calculate stats
           const total = formattedAssessments.length
           const avgScore = Math.round(
             formattedAssessments.reduce((sum: number, a: Assessment) => sum + a.score, 0) / total,
           )
 
-          // Find strongest skill
-          const skillScores: Record<string, number[]> = {}
+          // Find strongest skill based on frequency and scores
+          const skillScores: Record<string, { total: number; count: number }> = {}
           formattedAssessments.forEach((a: Assessment) => {
             a.skills.forEach((skill: string) => {
-              if (!skillScores[skill]) skillScores[skill] = []
-              skillScores[skill].push(a.score)
+              if (!skillScores[skill]) skillScores[skill] = { total: 0, count: 0 }
+              skillScores[skill].total += a.score
+              skillScores[skill].count += 1
             })
           })
 
           let topSkill = ""
           let topAvg = 0
-          Object.entries(skillScores).forEach(([skill, scores]) => {
-            const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+          Object.entries(skillScores).forEach(([skill, data]) => {
+            const avg = data.total / data.count
             if (avg > topAvg) {
               topAvg = avg
               topSkill = skill
@@ -95,9 +110,18 @@ const DashboardPage = () => {
             lastAssessment: lastActivity,
             strongestSkill: topSkill || (language === "ar" ? "غير متوفر" : "N/A"),
           })
+        } else {
+          setAssessments([])
+          setStats({
+            totalAssessments: 0,
+            averageScore: 0,
+            lastAssessment: language === "ar" ? "لا يوجد" : "None",
+            strongestSkill: language === "ar" ? "غير متوفر" : "N/A",
+          })
         }
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error)
+        setAssessments([])
       } finally {
         setLoading(false)
       }
@@ -258,7 +282,7 @@ const DashboardPage = () => {
                       </div>
                       <div className="flex space-x-2 space-x-reverse">
                         <Button asChild variant="outline" size="sm">
-                          <Link to={`/results`}>
+                          <Link to={`/results`} state={{ result_id: assessment.id }}>
                             <Eye className="w-4 h-4 mr-2" />
                             {language === "ar" ? "عرض التقرير" : "View Report"}
                           </Link>

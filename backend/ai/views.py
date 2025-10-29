@@ -2,7 +2,9 @@
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from cv.models import CV
-from .ai_logic import extract_text_from_pdf, generate_questions_from_cv, detect_cv_language
+from quiz.models import Quiz, Question, Result
+from feedback.models import Feedback
+from .ai_logic import extract_text_from_pdf, generate_questions_from_cv, detect_cv_language, generate_feedback_from_ai
 import json
 import logging
 
@@ -21,6 +23,7 @@ def generate_questions_view(request):
         return JsonResponse({"error": "Invalid request method."}, status=400)
 
     cv_file = None
+    cv_obj = None
 
     # Try JSON body with cv_id
     try:
@@ -30,8 +33,8 @@ def generate_questions_view(request):
             cv_id = data.get("cv_id")
             if cv_id is not None:
                 try:
-                    obj = CV.objects.get(pk=cv_id)
-                    cv_file = obj.file  # FileField
+                    cv_obj = CV.objects.get(pk=cv_id)
+                    cv_file = cv_obj.file  # FileField
                 except CV.DoesNotExist:
                     return JsonResponse({"error": "CV not found."}, status=404)
     except Exception as e:
@@ -55,8 +58,7 @@ def generate_questions_view(request):
         # Detect language for quiz generation
         language = 'en'  # default
         try:
-            if hasattr(cv_file, 'instance'):
-                cv_obj = CV.objects.get(file=cv_file)
+            if cv_obj:
                 language = cv_obj.detected_language or 'en'
             else:
                 language = detect_cv_language(text)
@@ -64,11 +66,33 @@ def generate_questions_view(request):
             logger.error(f"Language detection error: {e}")
             language = 'en'
 
-        questions = generate_questions_from_cv(text, language=language)
+        questions_data = generate_questions_from_cv(text, language=language)
+        questions = _normalize_questions(questions_data)
 
-        # Normalize to list[dict]
-        questions = _normalize_questions(questions)
-
+        if request.user.is_authenticated and cv_obj:
+            try:
+                quiz = Quiz.objects.create(
+                    user=request.user,
+                    title=f"Quiz for {cv_obj.title}",
+                    cv=cv_obj
+                )
+                
+                for idx, q in enumerate(questions):
+                    Question.objects.create(
+                        quiz=quiz,
+                        text=q.get('question', ''),
+                        options=q.get('options', []),
+                        correct_answer=q.get('correctAnswer', 0)
+                    )
+                
+                return JsonResponse({
+                    "questions": questions,
+                    "language": language,
+                    "quiz_id": quiz.id
+                }, status=200, safe=False)
+            except Exception as e:
+                logger.error(f"Error saving quiz: {e}")
+        
         return JsonResponse({"questions": questions, "language": language}, status=200, safe=False)
     except Exception as e:
         logger.error(f"Error generating questions: {e}")
@@ -91,30 +115,61 @@ def submit_answers_view(request):
     try:
         body = request.body.decode("utf-8") or "{}"
         data = json.loads(body)
-        answers = data.get("answers")
+        answers = data.get("answers", [])
+        quiz_id = data.get("quiz_id")
 
         # Normalize answers to a list of {question, answer}
         if isinstance(answers, dict):
             answers_list = [{"question": q, "answer": a} for q, a in answers.items()]
         elif isinstance(answers, list):
-            # ensure shape
             answers_list = []
             for item in answers:
-                if isinstance(item, dict) and "question" in item and "answer" in item:
-                    answers_list.append({"question": item["question"], "answer": item["answer"]})
+                if isinstance(item, dict):
+                    answers_list.append(item)
         else:
             answers_list = []
 
-        # Dummy scoring: give 75 if we received any answers, else 0
-        score = 75 if answers_list else 0
+        total_questions = len(answers_list)
+        correct_count = 0
+        
+        for ans in answers_list:
+            if ans.get('correctAnswer') is not None and ans.get('answer') == ans.get('correctAnswer'):
+                correct_count += 1
+        
+        score = round((correct_count / total_questions * 100)) if total_questions > 0 else 0
+
+        result_obj = None
+        if request.user.is_authenticated and quiz_id:
+            try:
+                quiz = Quiz.objects.get(id=quiz_id)
+                result_obj = Result.objects.create(
+                    quiz=quiz,
+                    user=request.user,
+                    score=score,
+                    answers=answers_list
+                )
+                
+                wrong_answers = [ans for ans in answers_list if ans.get('answer') != ans.get('correctAnswer')]
+                feedback_text = generate_feedback_from_ai(wrong_answers, score)
+                
+                Feedback.objects.create(
+                    user=request.user,
+                    cv=quiz.cv,
+                    result=result_obj,
+                    content=feedback_text,
+                    rating=5 if score >= 80 else 4 if score >= 70 else 3
+                )
+                
+            except Exception as e:
+                logger.error(f"Error saving result: {e}")
 
         # Turn answers into "results" entries for UI
         results = [
             {
-                "skill": _infer_skill_from_question(a["question"]),
-                "score": 80,  # placeholder per item
+                "skill": _infer_skill_from_question(a.get("question", "")),
+                "score": 100 if a.get('answer') == a.get('correctAnswer') else 0,
                 "category": "technical",
-                "status": "good",
+                "status": "good" if a.get('answer') == a.get('correctAnswer') else "needs_improvement",
             }
             for a in answers_list
         ]
@@ -123,13 +178,13 @@ def submit_answers_view(request):
             {
                 "score": score,
                 "results": results,
+                "result_id": result_obj.id if result_obj else None,
             },
             status=200,
         )
     except Exception as e:
         logger.error(f"Error submitting answers: {e}")
         return JsonResponse({"error": f"Failed to submit answers: {str(e)}"}, status=500)
-
 
 # -----------------
 # Helpers

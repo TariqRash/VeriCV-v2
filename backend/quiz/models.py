@@ -3,8 +3,12 @@ from django.contrib.auth.models import User
 
 class Quiz(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quizzes')
+    cv = models.ForeignKey('cv.CV', on_delete=models.CASCADE, related_name='quizzes', null=True, blank=True)
     title = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.user.username}"
 
 class Question(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
@@ -12,18 +16,21 @@ class Question(models.Model):
     options = models.JSONField()
     correct_answer = models.CharField(max_length=1)
 
+    def __str__(self):
+        return f"Q: {self.text[:50]}"
+
 class Result(models.Model):
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='results')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='results')
     score = models.FloatField()
     completed_at = models.DateTimeField(auto_now_add=True)
 
-    # Store detailed answers
     answers = models.JSONField(default=dict, blank=True)
 
-    # AI recommendations
     ai_recommendations = models.TextField(blank=True, null=True)
 
+    def __str__(self):
+        return f"{self.user.username} - {self.quiz.title} - {self.score}%"
 
 class VoiceInterview(models.Model):
     """Voice interview after quiz completion"""
