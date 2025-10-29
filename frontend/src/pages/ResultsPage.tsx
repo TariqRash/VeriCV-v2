@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Trophy, TrendingUp, Target, BookOpen, ArrowRight, Download, Share, Loader2 } from "lucide-react"
+import { Trophy, TrendingUp, Target, BookOpen, ArrowRight, Download, Share, Loader2, Home } from "lucide-react"
 import { useLanguage } from "@/context/LanguageContext"
 import api from "@/api/http"
 
@@ -41,10 +41,11 @@ export default function ResultsPage() {
     const fetchResults = async () => {
       try {
         setLoading(true)
+        console.log("[v0] ResultsPage: Fetching results...")
 
-        // Check if data was passed via router state
         const stateData = location?.state as any
         if (stateData?.overallScore !== undefined && stateData?.skills) {
+          console.log("[v0] ResultsPage: Using state data", stateData)
           setResultData({
             overallScore: stateData.overallScore,
             skills: stateData.skills,
@@ -55,13 +56,49 @@ export default function ResultsPage() {
           return
         }
 
-        // Otherwise fetch from API
+        const resultId = localStorage.getItem("last_result_id") || new URLSearchParams(location.search).get("result_id")
+
+        if (resultId) {
+          console.log("[v0] ResultsPage: Fetching result by ID:", resultId)
+          const { data } = await api.get(`quiz/results/${resultId}/`)
+          if (data) {
+            const answers = typeof data.answers === "string" ? JSON.parse(data.answers) : data.answers
+            const skills = Array.isArray(answers)
+              ? answers.map((a: any) => ({
+                  skill: a.skill || "General",
+                  score: a.score || 70,
+                  category: a.category || "technical",
+                }))
+              : []
+
+            setResultData({
+              overallScore: data.score || 0,
+              skills: skills,
+              recommendations: data.recommendations || [],
+              feedback: data.feedback,
+            })
+            setLoading(false)
+            return
+          }
+        }
+
+        console.log("[v0] ResultsPage: Fetching latest results...")
         const { data } = await api.get("quiz/results/")
         if (data && data.length > 0) {
           const latestResult = data[0]
+          const answers =
+            typeof latestResult.answers === "string" ? JSON.parse(latestResult.answers) : latestResult.answers
+          const skills = Array.isArray(answers)
+            ? answers.map((a: any) => ({
+                skill: a.skill || "General",
+                score: a.score || 70,
+                category: a.category || "technical",
+              }))
+            : []
+
           setResultData({
             overallScore: latestResult.score || 0,
-            skills: latestResult.skills || [],
+            skills: skills,
             recommendations: latestResult.recommendations || [],
             feedback: latestResult.feedback,
           })
@@ -69,7 +106,7 @@ export default function ResultsPage() {
           setError("No results found")
         }
       } catch (err: any) {
-        console.error("Failed to fetch results:", err)
+        console.error("[v0] ResultsPage: Failed to fetch results:", err)
         setError(err?.response?.data?.error || "Failed to load results")
       } finally {
         setLoading(false)
@@ -142,13 +179,28 @@ export default function ResultsPage() {
           <Card className="shadow-large">
             <CardContent className="p-12 text-center">
               <Trophy className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-4">{t.results.noResults}</h2>
-              <Button asChild variant="hero" size="lg">
-                <Link to="/quiz">
-                  {t.results.goToQuiz}
-                  <ArrowRight className={`w-4 h-4 ${language === "ar" ? "mr-2" : "ml-2"}`} />
-                </Link>
-              </Button>
+              <h2 className="text-2xl font-bold mb-4">
+                {language === "ar" ? "لم يتم العثور على نتائج" : "No Results Found"}
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                {language === "ar"
+                  ? "يرجى إكمال التقييم أولاً لعرض النتائج"
+                  : "Please complete an assessment first to view results"}
+              </p>
+              <div className="flex gap-4 justify-center">
+                <Button asChild variant="outline" size="lg">
+                  <Link to="/">
+                    <Home className={`w-4 h-4 ${language === "ar" ? "ml-2" : "mr-2"}`} />
+                    {language === "ar" ? "الرئيسية" : "Home"}
+                  </Link>
+                </Button>
+                <Button asChild variant="hero" size="lg">
+                  <Link to="/upload">
+                    <ArrowRight className={`w-4 h-4 ${language === "ar" ? "mr-2" : "ml-2"}`} />
+                    {language === "ar" ? "ابدأ التقييم" : "Start Assessment"}
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -313,6 +365,12 @@ export default function ResultsPage() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Button asChild variant="hero" size="lg">
+            <Link to="/dashboard">
+              <Home className={`w-4 h-4 ${language === "ar" ? "ml-2" : "mr-2"}`} />
+              {language === "ar" ? "لوحة التحكم" : "Go to Dashboard"}
+            </Link>
+          </Button>
           <Button variant="hero" size="lg" onClick={downloadReport} className="gap-2">
             <Download className="w-4 h-4" />
             {t.results.downloadReport}

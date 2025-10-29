@@ -4,16 +4,18 @@
 import { useState, useEffect } from "react"
 import { NavLink, useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
-import { Menu, X, FileText, Home, Info, LogOut, LogIn, UserPlus } from "lucide-react"
+import { Menu, X, FileText, Home, Info, LogOut, LogIn, UserPlus, LayoutDashboard } from "lucide-react"
 import { isAuthenticated, hasUploadedCV, logout, subscribeAuth } from "@/utils/auth"
 import { LanguageSwitcher } from "./LanguageSwitcher"
 import { useLanguage } from "@/context/LanguageContext"
+import api from "@/utils/api"
 
 const Navigation = () => {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [isOpen, setIsOpen] = useState(false)
   const [authed, setAuthed] = useState(isAuthenticated())
   const [cvReady, setCvReady] = useState(hasUploadedCV())
+  const [userName, setUserName] = useState<string | null>(null)
   const nav = useNavigate()
   const location = useLocation()
 
@@ -43,9 +45,39 @@ const Navigation = () => {
     setCvReady(hasUploadedCV())
   }, [location.pathname])
 
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!authed) {
+        setUserName(null)
+        return
+      }
+
+      try {
+        // Try to get name from localStorage first
+        const storedName = localStorage.getItem("user_name")
+        if (storedName) {
+          setUserName(storedName)
+          return
+        }
+
+        // Otherwise fetch from API
+        const { data } = await api.get("users/profile/")
+        if (data?.name) {
+          setUserName(data.name)
+          localStorage.setItem("user_name", data.name)
+        }
+      } catch (err) {
+        console.error("[v0] Failed to fetch user profile:", err)
+      }
+    }
+
+    fetchUserProfile()
+  }, [authed])
+
   const navItems = [
     { name: t.nav.home, href: "/", icon: Home, show: true },
     { name: t.nav.upload, href: "/upload", icon: FileText, show: authed },
+    { name: language === "ar" ? "لوحة التحكم" : "Dashboard", href: "/dashboard", icon: LayoutDashboard, show: authed },
     { name: t.nav.about, href: "/about", icon: Info, show: true },
   ].filter((i) => i.show)
 
@@ -98,10 +130,17 @@ const Navigation = () => {
               </Button>
             </>
           ) : (
-            <Button variant="outline" onClick={handleLogout} className="transition-smooth bg-transparent">
-              <LogOut className="w-4 h-4 mr-2" />
-              {t.nav.logout}
-            </Button>
+            <>
+              {userName && (
+                <span className="text-sm font-medium text-muted-foreground">
+                  {language === "ar" ? `مرحباً، ${userName}` : `Hello, ${userName}`}
+                </span>
+              )}
+              <Button variant="outline" onClick={handleLogout} className="transition-smooth bg-transparent">
+                <LogOut className="w-4 h-4 mr-2" />
+                {t.nav.logout}
+              </Button>
+            </>
           )}
         </div>
 

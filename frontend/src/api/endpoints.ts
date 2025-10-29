@@ -65,6 +65,15 @@ export async function uploadCV(file: File, title = "My CV") {
 }
 
 /* =====================
+   User Profile
+   ===================== */
+
+export async function getUserProfile() {
+  const { data } = await api.get("users/profile/")
+  return data
+}
+
+/* =====================
    AI: Quiz generation & submission
    ===================== */
 
