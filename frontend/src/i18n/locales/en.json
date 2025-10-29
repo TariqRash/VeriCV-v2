@@ -1,0 +1,131 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "skip": "Skip",
+    "submit": "Submit",
+    "download": "Download",
+    "yes": "Yes",
+    "no": "No",
+    "next": "Next",
+    "previous": "Previous",
+    "finish": "Finish"
+  },
+  "nav": {
+    "home": "Home",
+    "about": "About",
+    "team": "Team",
+    "upload": "Upload CV",
+    "quiz": "Take Quiz",
+    "results": "Results",
+    "logout": "Logout",
+    "login": "Login",
+    "signup": "Sign Up"
+  },
+  "landing": {
+    "hero_title": "Transform Your CV into Career Success",
+    "hero_subtitle": "AI-powered CV analysis, personalized quizzes, and voice interviews to help you land your dream job",
+    "get_started": "Get Started",
+    "how_it_works": "How It Works",
+    "features": {
+      "upload": {
+        "title": "Upload Your CV",
+        "description": "Upload your CV and our AI will extract key information automatically"
+      },
+      "analyze": {
+        "title": "Take Assessment",
+        "description": "Complete personalized quizzes in your preferred language"
+      },
+      "interview": {
+        "title": "Voice Interview",
+        "description": "Practice with our 3-minute AI voice interview"
+      },
+      "results": {
+        "title": "Get Insights",
+        "description": "Receive detailed feedback and job recommendations"
+      }
+    }
+  },
+  "auth": {
+    "login_title": "Welcome Back",
+    "signup_title": "Create Account",
+    "username": "Username",
+    "password": "Password",
+    "confirm_password": "Confirm Password",
+    "full_name": "Full Name",
+    "login_button": "Login",
+    "signup_button": "Sign Up",
+    "no_account": "Don't have an account?",
+    "have_account": "Already have an account?"
+  },
+  "upload": {
+    "title": "Upload Your CV",
+    "subtitle": "Upload your CV to get started with personalized assessment",
+    "drag_drop": "Drag and drop your CV here",
+    "or": "or",
+    "browse": "Browse Files",
+    "supported": "Supported format: PDF",
+    "uploading": "Uploading...",
+    "success": "CV uploaded successfully!",
+    "error": "Failed to upload CV"
+  },
+  "verification": {
+    "title": "Verify Your Information",
+    "subtitle": "We extracted the following information from your CV. Is this correct?",
+    "name": "Your Name",
+    "phone": "Phone Number",
+    "city": "City",
+    "confirm_button": "Save Info",
+    "confirm_subtitle": "Saving info will help us get you more personalized jobs",
+    "skip_button": "No, it's not me",
+    "correct_question": "Is your name {{name}} and your phone number is {{phone}}?"
+  },
+  "quiz": {
+    "title": "Assessment Quiz",
+    "subtitle": "Answer the following questions based on your skills",
+    "question": "Question",
+    "of": "of",
+    "time_left": "Time Left",
+    "minutes": "minutes",
+    "select_answer": "Select your answer",
+    "submit_quiz": "Submit Quiz",
+    "submitting": "Submitting...",
+    "loading_questions": "Loading questions..."
+  },
+  "interview": {
+    "title": "AI Voice Interview",
+    "subtitle": "Ready for a 3-minute AI interview?",
+    "description": "This interview will assess your communication skills and confidence. Speak clearly and answer the questions naturally.",
+    "start_button": "Start Interview",
+    "stop_button": "Stop Recording",
+    "submit_button": "Submit Interview",
+    "recording": "Recording...",
+    "time_remaining": "Time Remaining",
+    "question": "Question",
+    "speak_now": "Speak now to answer this question",
+    "processing": "Processing your interview...",
+    "mic_permission": "Please allow microphone access to continue"
+  },
+  "results": {
+    "title": "Your Results",
+    "overall_score": "Overall Score",
+    "quiz_results": "Quiz Results",
+    "interview_results": "Interview Results",
+    "soft_skills": "Soft Skills",
+    "communication": "Communication",
+    "confidence": "Confidence",
+    "recommendations": "Recommendations",
+    "improvement": "Areas for Improvement",
+    "job_titles": "Recommended Job Titles",
+    "find_jobs": "Find Jobs",
+    "download_report": "Download PDF Report",
+    "linkedin_search": "Search on LinkedIn"
+  },
+  "footer": {
+    "copyright": "© 2025 VeriCV. All rights reserved.",
+    "made_with": "Made with",
+    "by": "by the VeriCV Team"
+  }
+}
