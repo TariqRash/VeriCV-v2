@@ -42,10 +42,12 @@ export default function ResultsPage() {
       try {
         setLoading(true)
         console.log("[v0] ResultsPage: Starting fetch...")
+        console.log("[v0] Location state:", location?.state)
+        console.log("[v0] LocalStorage result_id:", localStorage.getItem("last_result_id"))
 
         const stateData = location?.state as any
         if (stateData?.overallScore !== undefined && stateData?.skills) {
-          console.log("[v0] ResultsPage: Using navigation state data")
+          console.log("[v0] ResultsPage: Using navigation state data:", stateData)
           setResultData({
             overallScore: stateData.overallScore,
             skills: stateData.skills,
@@ -61,38 +63,47 @@ export default function ResultsPage() {
           new URLSearchParams(location.search).get("result_id") ||
           stateData?.result_id
 
+        console.log("[v0] Resolved result_id:", resultId)
+
         if (resultId) {
           console.log("[v0] ResultsPage: Fetching result by ID:", resultId)
           const { data } = await api.get(`quiz/results/${resultId}/`)
-          console.log("[v0] ResultsPage: Received data:", data)
+          console.log("[v0] ResultsPage: Received data from API:", data)
 
           if (data) {
             let answers = data.answers
+            console.log("[v0] Raw answers:", answers, "Type:", typeof answers)
+
             if (typeof answers === "string") {
               try {
                 answers = JSON.parse(answers)
+                console.log("[v0] Parsed answers from string:", answers)
               } catch (e) {
                 console.error("[v0] Failed to parse answers:", e)
                 answers = []
               }
             }
 
-            const skills = Array.isArray(answers)
-              ? answers.map((a: any) => ({
-                  skill: a.skill || "General",
-                  score: a.isCorrect ? 100 : a.score || 0,
-                  category: a.category || "technical",
-                }))
-              : []
-
             const skillMap: Record<string, { total: number; count: number; category: string }> = {}
-            skills.forEach((s: any) => {
-              if (!skillMap[s.skill]) {
-                skillMap[s.skill] = { total: 0, count: 0, category: s.category }
-              }
-              skillMap[s.skill].total += s.score
-              skillMap[s.skill].count += 1
-            })
+
+            if (Array.isArray(answers)) {
+              console.log("[v0] Processing", answers.length, "answers")
+              answers.forEach((a: any, idx: number) => {
+                const skill = a.skill || "General"
+                const category = a.category || "technical"
+                const score = a.isCorrect ? 100 : a.score || 0
+
+                console.log(`[v0] Answer ${idx}: skill=${skill}, score=${score}, isCorrect=${a.isCorrect}`)
+
+                if (!skillMap[skill]) {
+                  skillMap[skill] = { total: 0, count: 0, category }
+                }
+                skillMap[skill].total += score
+                skillMap[skill].count += 1
+              })
+            }
+
+            console.log("[v0] Skill map:", skillMap)
 
             const aggregatedSkills = Object.entries(skillMap).map(([skill, data]) => ({
               skill,
@@ -100,12 +111,17 @@ export default function ResultsPage() {
               category: data.category,
             }))
 
-            setResultData({
+            console.log("[v0] Aggregated skills:", aggregatedSkills)
+
+            const resultData = {
               overallScore: Math.round(data.score || 0),
               skills: aggregatedSkills,
               recommendations: data.recommendations || [],
               feedback: data.feedback?.content || data.feedback,
-            })
+            }
+
+            console.log("[v0] Final result data:", resultData)
+            setResultData(resultData)
             setLoading(false)
             return
           }
@@ -113,8 +129,12 @@ export default function ResultsPage() {
 
         console.log("[v0] ResultsPage: Fetching latest results...")
         const { data } = await api.get("quiz/results/")
+        console.log("[v0] Latest results:", data)
+
         if (data && data.length > 0) {
           const latestResult = data[0]
+          console.log("[v0] Using latest result:", latestResult)
+
           let answers = latestResult.answers
           if (typeof answers === "string") {
             try {
@@ -124,22 +144,20 @@ export default function ResultsPage() {
             }
           }
 
-          const skills = Array.isArray(answers)
-            ? answers.map((a: any) => ({
-                skill: a.skill || "General",
-                score: a.isCorrect ? 100 : a.score || 0,
-                category: a.category || "technical",
-              }))
-            : []
-
           const skillMap: Record<string, { total: number; count: number; category: string }> = {}
-          skills.forEach((s: any) => {
-            if (!skillMap[s.skill]) {
-              skillMap[s.skill] = { total: 0, count: 0, category: s.category }
-            }
-            skillMap[s.skill].total += s.score
-            skillMap[s.skill].count += 1
-          })
+          if (Array.isArray(answers)) {
+            answers.forEach((a: any) => {
+              const skill = a.skill || "General"
+              const category = a.category || "technical"
+              const score = a.isCorrect ? 100 : a.score || 0
+
+              if (!skillMap[skill]) {
+                skillMap[skill] = { total: 0, count: 0, category }
+              }
+              skillMap[skill].total += score
+              skillMap[skill].count += 1
+            })
+          }
 
           const aggregatedSkills = Object.entries(skillMap).map(([skill, data]) => ({
             skill,
@@ -154,10 +172,12 @@ export default function ResultsPage() {
             feedback: latestResult.feedback?.content || latestResult.feedback,
           })
         } else {
+          console.log("[v0] No results found")
           setError("No results found")
         }
       } catch (err: any) {
         console.error("[v0] ResultsPage: Error:", err)
+        console.error("[v0] Error response:", err?.response?.data)
         setError(err?.response?.data?.error || "Failed to load results")
       } finally {
         setLoading(false)
