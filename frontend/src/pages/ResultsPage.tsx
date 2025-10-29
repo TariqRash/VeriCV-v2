@@ -41,11 +41,11 @@ export default function ResultsPage() {
     const fetchResults = async () => {
       try {
         setLoading(true)
-        console.log("[v0] ResultsPage: Fetching results...")
+        console.log("[v0] ResultsPage: Starting fetch...")
 
         const stateData = location?.state as any
         if (stateData?.overallScore !== undefined && stateData?.skills) {
-          console.log("[v0] ResultsPage: Using state data", stateData)
+          console.log("[v0] ResultsPage: Using navigation state data")
           setResultData({
             overallScore: stateData.overallScore,
             skills: stateData.skills,
@@ -56,26 +56,55 @@ export default function ResultsPage() {
           return
         }
 
-        const resultId = localStorage.getItem("last_result_id") || new URLSearchParams(location.search).get("result_id")
+        const resultId =
+          localStorage.getItem("last_result_id") ||
+          new URLSearchParams(location.search).get("result_id") ||
+          stateData?.result_id
 
         if (resultId) {
           console.log("[v0] ResultsPage: Fetching result by ID:", resultId)
           const { data } = await api.get(`quiz/results/${resultId}/`)
+          console.log("[v0] ResultsPage: Received data:", data)
+
           if (data) {
-            const answers = typeof data.answers === "string" ? JSON.parse(data.answers) : data.answers
+            let answers = data.answers
+            if (typeof answers === "string") {
+              try {
+                answers = JSON.parse(answers)
+              } catch (e) {
+                console.error("[v0] Failed to parse answers:", e)
+                answers = []
+              }
+            }
+
             const skills = Array.isArray(answers)
               ? answers.map((a: any) => ({
                   skill: a.skill || "General",
-                  score: a.score || 70,
+                  score: a.isCorrect ? 100 : a.score || 0,
                   category: a.category || "technical",
                 }))
               : []
 
+            const skillMap: Record<string, { total: number; count: number; category: string }> = {}
+            skills.forEach((s: any) => {
+              if (!skillMap[s.skill]) {
+                skillMap[s.skill] = { total: 0, count: 0, category: s.category }
+              }
+              skillMap[s.skill].total += s.score
+              skillMap[s.skill].count += 1
+            })
+
+            const aggregatedSkills = Object.entries(skillMap).map(([skill, data]) => ({
+              skill,
+              score: Math.round(data.total / data.count),
+              category: data.category,
+            }))
+
             setResultData({
-              overallScore: data.score || 0,
-              skills: skills,
+              overallScore: Math.round(data.score || 0),
+              skills: aggregatedSkills,
               recommendations: data.recommendations || [],
-              feedback: data.feedback,
+              feedback: data.feedback?.content || data.feedback,
             })
             setLoading(false)
             return
@@ -86,27 +115,49 @@ export default function ResultsPage() {
         const { data } = await api.get("quiz/results/")
         if (data && data.length > 0) {
           const latestResult = data[0]
-          const answers =
-            typeof latestResult.answers === "string" ? JSON.parse(latestResult.answers) : latestResult.answers
+          let answers = latestResult.answers
+          if (typeof answers === "string") {
+            try {
+              answers = JSON.parse(answers)
+            } catch (e) {
+              answers = []
+            }
+          }
+
           const skills = Array.isArray(answers)
             ? answers.map((a: any) => ({
                 skill: a.skill || "General",
-                score: a.score || 70,
+                score: a.isCorrect ? 100 : a.score || 0,
                 category: a.category || "technical",
               }))
             : []
 
+          const skillMap: Record<string, { total: number; count: number; category: string }> = {}
+          skills.forEach((s: any) => {
+            if (!skillMap[s.skill]) {
+              skillMap[s.skill] = { total: 0, count: 0, category: s.category }
+            }
+            skillMap[s.skill].total += s.score
+            skillMap[s.skill].count += 1
+          })
+
+          const aggregatedSkills = Object.entries(skillMap).map(([skill, data]) => ({
+            skill,
+            score: Math.round(data.total / data.count),
+            category: data.category,
+          }))
+
           setResultData({
-            overallScore: latestResult.score || 0,
-            skills: skills,
+            overallScore: Math.round(latestResult.score || 0),
+            skills: aggregatedSkills,
             recommendations: latestResult.recommendations || [],
-            feedback: latestResult.feedback,
+            feedback: latestResult.feedback?.content || latestResult.feedback,
           })
         } else {
           setError("No results found")
         }
       } catch (err: any) {
-        console.error("[v0] ResultsPage: Failed to fetch results:", err)
+        console.error("[v0] ResultsPage: Error:", err)
         setError(err?.response?.data?.error || "Failed to load results")
       } finally {
         setLoading(false)
