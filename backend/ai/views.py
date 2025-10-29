@@ -125,7 +125,7 @@ def submit_answers_view(request):
     """
     POST /api/ai/submit/
     Body: { "quiz_id": <int>, "cv_id": <int>, "answers": [...] }
-    Responds with score, result_id, and feedback
+    Responds with score, result_id, quiz_id, and feedback
     """
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method."}, status=400)
@@ -137,10 +137,9 @@ def submit_answers_view(request):
         quiz_id = data.get("quiz_id")
         cv_id = data.get("cv_id")
 
-        logger.info(f"Submitting answers for quiz_id: {quiz_id}, cv_id: {cv_id}")
-        logger.info(f"Received {len(answers)} answers")
+        logger.info(f"[v0] Submitting answers for quiz_id: {quiz_id}, cv_id: {cv_id}")
+        logger.info(f"[v0] Received {len(answers)} answers")
 
-        # Normalize answers to a list
         if isinstance(answers, dict):
             answers_list = [{"question": q, "answer": a} for q, a in answers.items()]
         elif isinstance(answers, list):
@@ -148,33 +147,54 @@ def submit_answers_view(request):
         else:
             answers_list = []
 
+        # Get quiz questions to validate answers
+        quiz_obj = None
+        if quiz_id:
+            try:
+                quiz_obj = Quiz.objects.get(id=quiz_id)
+                questions = list(quiz_obj.questions.all())
+                
+                # Mark each answer as correct or incorrect
+                for i, ans in enumerate(answers_list):
+                    if i < len(questions):
+                        question = questions[i]
+                        user_answer = ans.get('answer')
+                        correct_answer = question.correct_answer
+                        
+                        # Compare answers (handle both index and text)
+                        if isinstance(user_answer, int):
+                            ans['isCorrect'] = (user_answer == int(correct_answer))
+                        else:
+                            ans['isCorrect'] = (str(user_answer) == str(correct_answer))
+                        
+                        ans['correctAnswer'] = correct_answer
+                        logger.info(f"[v0] Q{i+1}: User={user_answer}, Correct={correct_answer}, IsCorrect={ans['isCorrect']}")
+            except Quiz.DoesNotExist:
+                logger.warning(f"[v0] Quiz {quiz_id} not found, cannot validate answers")
+
         total_questions = len(answers_list)
         correct_count = sum(1 for ans in answers_list if ans.get('isCorrect') == True)
         
         score = round((correct_count / total_questions * 100)) if total_questions > 0 else 0
-        logger.info(f"Calculated score: {score}% ({correct_count}/{total_questions})")
+        logger.info(f"[v0] Calculated score: {score}% ({correct_count}/{total_questions})")
 
         result_obj = None
         feedback_text = ""
         
         if request.user.is_authenticated:
             try:
-                quiz = None
                 cv = None
                 
-                if quiz_id:
-                    quiz = Quiz.objects.get(id=quiz_id, user=request.user)
                 if cv_id:
                     cv = CV.objects.get(id=cv_id, user=request.user)
                 
-                # Create result with answers stored as JSON
                 result_obj = Result.objects.create(
-                    quiz=quiz,
+                    quiz=quiz_obj,
                     user=request.user,
                     score=score,
                     answers=answers_list  # Django JSONField will handle this
                 )
-                logger.info(f"Created result with ID: {result_obj.id}")
+                logger.info(f"[v0] Created result with ID: {result_obj.id}")
                 
                 # Generate AI feedback
                 wrong_answers = [ans for ans in answers_list if not ans.get('isCorrect')]
@@ -188,21 +208,23 @@ def submit_answers_view(request):
                     content=feedback_text,
                     rating=5 if score >= 80 else 4 if score >= 70 else 3
                 )
-                logger.info(f"Created feedback for result {result_obj.id}")
+                logger.info(f"[v0] Created feedback for result {result_obj.id}")
                 
             except Exception as e:
-                logger.error(f"Error saving result: {e}", exc_info=True)
+                logger.error(f"[v0] Error saving result: {e}", exc_info=True)
 
         return JsonResponse({
             "score": score,
             "result_id": result_obj.id if result_obj else None,
+            "quiz_id": quiz_id,
             "feedback": feedback_text,
             "correct": correct_count,
-            "total": total_questions
+            "total": total_questions,
+            "answers": answers_list  # Include validated answers
         }, status=200)
         
     except Exception as e:
-        logger.error(f"Error submitting answers: {e}", exc_info=True)
+        logger.error(f"[v0] Error submitting answers: {e}", exc_info=True)
         return JsonResponse({"error": f"Failed to submit answers: {str(e)}"}, status=500)
 
 # -----------------
