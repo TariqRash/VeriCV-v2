@@ -18,6 +18,7 @@ import { AuthProvider } from "./context/AuthContext"
 import { LanguageProvider } from "./context/LanguageContext"
 import SignIn from "./pages/SignIn"
 import SignUp from "./pages/SignUp"
+import DashboardPage from "./pages/DashboardPage"
 
 const queryClient = new QueryClient()
 
@@ -43,6 +44,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <UploadPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardPage />
                       </ProtectedRoute>
                     }
                   />
