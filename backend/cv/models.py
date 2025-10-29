@@ -15,6 +15,21 @@ class CV(models.Model):
     file = models.FileField(upload_to='cvs/',validators=[validate_cv_file])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    # Extracted information from CV
+    extracted_name = models.CharField(max_length=255, blank=True, null=True)
+    extracted_phone = models.CharField(max_length=50, blank=True, null=True)
+    extracted_city = models.CharField(max_length=100, blank=True, null=True)
+    detected_language = models.CharField(max_length=10, default='en', choices=[('en', 'English'), ('ar', 'Arabic')])
+
+    # Job titles extracted from CV (stored as JSON array)
+    extracted_job_titles = models.JSONField(default=list, blank=True)
+
+    # User confirmation status
+    info_confirmed = models.BooleanField(default=False)
+
+    # IP-based city detection
+    ip_detected_city = models.CharField(max_length=100, blank=True, null=True)
+
     def __str__(self):
         return self.title
     
