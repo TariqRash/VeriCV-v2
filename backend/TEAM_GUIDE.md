@@ -136,4 +136,4 @@
 ---
 
 **Created by:** VeriCV Team  
-**Version:** 1.1 — 12 October 2025  
+**Version:** 1.1 — 12 October 2025

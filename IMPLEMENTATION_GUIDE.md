@@ -45,40 +45,40 @@ This implementation adds comprehensive multilingual support, smart CV informatio
 ### Backend Setup
 
 1. **Install Python dependencies:**
-   ```bash
+   \`\`\`bash
    cd /home/VeriCV/backend
    pip install -r requirements.txt
-   ```
+   \`\`\`
 
 2. **Create database migrations:**
-   ```bash
+   \`\`\`bash
    python manage.py makemigrations cv quiz
    python manage.py migrate
-   ```
+   \`\`\`
 
 3. **Add environment variables to `.env`:**
-   ```bash
+   \`\`\`bash
    # Existing
    GROQ_API_KEY=your_groq_api_key
 
    # New (Required for voice interview)
    OPENAI_API_KEY=your_openai_api_key
-   ```
+   \`\`\`
 
 4. **Restart Django server:**
-   ```bash
+   \`\`\`bash
    systemctl restart vericv
    # or
    gunicorn core.wsgi:application --bind 0.0.0.0:8000
-   ```
+   \`\`\`
 
 ### Frontend Setup
 
 1. **Install Node.js dependencies:**
-   ```bash
+   \`\`\`bash
    cd /home/VeriCV/frontend
    npm install
-   ```
+   \`\`\`
 
    New packages installed:
    - `react-i18next` - Internationalization
@@ -88,15 +88,15 @@ This implementation adds comprehensive multilingual support, smart CV informatio
    - `recordrtc` - Audio recording
 
 2. **Build frontend:**
-   ```bash
+   \`\`\`bash
    npm run build
-   ```
+   \`\`\`
 
 3. **Deploy built files:**
-   ```bash
+   \`\`\`bash
    # Copy dist/ contents to Nginx serving directory
    cp -r dist/* /var/www/vericv/
-   ```
+   \`\`\`
 
 ## Database Schema Changes
 
@@ -266,12 +266,12 @@ Two-step city detection:
 
 ### Issue: Migrations fail
 **Solution**: Run migrations in order:
-```bash
+\`\`\`bash
 python manage.py makemigrations cv
 python manage.py migrate cv
 python manage.py makemigrations quiz
 python manage.py migrate quiz
-```
+\`\`\`
 
 ### Issue: Language detection returns wrong language
 **Solution**: Check CV text extraction quality. OCR may be needed for scanned PDFs.
@@ -325,7 +325,7 @@ Implement rate limiting for:
 ## Next Steps
 
 1. **Deploy to Production**:
-   ```bash
+   \`\`\`bash
    # On server (104.248.248.95)
    cd /home/VeriCV
    git pull origin dev
@@ -338,7 +338,7 @@ Implement rate limiting for:
    npm run build
    cp -r dist/* /var/www/vericv/
    systemctl restart nginx
-   ```
+   \`\`\`
 
 2. **Test All Features**:
    - Upload English and Arabic CVs

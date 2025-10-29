@@ -10,6 +10,9 @@ from ai.ai_logic import (
     extract_cv_information,
     detect_city_from_ip
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CVViewSet(viewsets.ModelViewSet):
     queryset = CV.objects.all()
@@ -42,8 +45,9 @@ class CVViewSet(viewsets.ModelViewSet):
                 cv_instance.ip_detected_city = ip_city
 
             cv_instance.save()
+            logger.info(f"CV {cv_instance.id} processed successfully for user {self.request.user.username}")
         except Exception as e:
-            print(f"Error extracting CV information: {e}")
+            logger.error(f"Error extracting CV information: {e}")
 
     def get_client_ip(self):
         """Extract client IP from request."""
@@ -53,6 +57,66 @@ class CVViewSet(viewsets.ModelViewSet):
         else:
             ip = self.request.META.get('REMOTE_ADDR')
         return ip
+
+    @action(detail=False, methods=['post'], url_path='upload')
+    def upload(self, request):
+        """Custom upload endpoint that returns cv_id for frontend."""
+        try:
+            file = request.FILES.get('file')
+            if not file:
+                return Response(
+                    {'error': 'No file provided'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Create CV instance
+            title = request.data.get('title', file.name)
+            cv = CV.objects.create(
+                user=request.user,
+                title=title,
+                file=file
+            )
+
+            # Extract information asynchronously
+            try:
+                cv_text = extract_text_from_pdf(cv.file)
+                language = detect_cv_language(cv_text)
+                cv.detected_language = language
+
+                extracted_info = extract_cv_information(cv_text)
+                cv.extracted_name = extracted_info.get('name', '')
+                cv.extracted_phone = extracted_info.get('phone', '')
+                cv.extracted_city = extracted_info.get('city', '')
+                cv.extracted_job_titles = extracted_info.get('job_titles', [])
+
+                client_ip = self.get_client_ip()
+                if client_ip:
+                    cv.ip_detected_city = detect_city_from_ip(client_ip)
+
+                cv.save()
+            except Exception as e:
+                logger.error(f"Error processing CV: {e}")
+
+            return Response({
+                'cv_id': cv.id,
+                'id': cv.id,
+                'filename': file.name,
+                'title': cv.title,
+                'detected_language': cv.detected_language,
+                'extracted_info': {
+                    'name': cv.extracted_name,
+                    'phone': cv.extracted_phone,
+                    'city': cv.extracted_city or cv.ip_detected_city,
+                    'job_titles': cv.extracted_job_titles
+                }
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Upload error: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'])
     def confirm_info(self, request, pk=None):

@@ -1,55 +1,65 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Upload, Brain, BarChart3, CheckCircle, FileText, Users } from "lucide-react";
-import { Link } from "react-router-dom";
-import heroImage from "@/assets/hero-bg.jpg";
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Upload, Brain, BarChart3, CheckCircle, FileText, Users, Mic } from "lucide-react"
+import { Link } from "react-router-dom"
+import { useLanguage } from "@/context/LanguageContext"
+import heroImage from "@/assets/hero-bg.jpg"
 
 const LandingPage = () => {
+  const { t } = useLanguage()
+
   const steps = [
     {
       icon: Upload,
-      title: "Upload",
-      description: "Upload your resume in PDF format",
+      title: t.landing.howItWorks.steps.upload.title,
+      description: t.landing.howItWorks.steps.upload.description,
     },
     {
       icon: Brain,
-      title: "Analyze",
-      description: "AI extracts and categorizes your skills",
+      title: t.landing.howItWorks.steps.analyze.title,
+      description: t.landing.howItWorks.steps.analyze.description,
     },
     {
       icon: CheckCircle,
-      title: "Quiz",
-      description: "Take a personalized skill assessment",
+      title: t.landing.howItWorks.steps.quiz.title,
+      description: t.landing.howItWorks.steps.quiz.description,
     },
     {
       icon: BarChart3,
-      title: "Feedback",
-      description: "Get detailed insights and improvement tips",
+      title: t.landing.howItWorks.steps.feedback.title,
+      description: t.landing.howItWorks.steps.feedback.description,
     },
-  ];
+  ]
 
   const features = [
     {
       icon: FileText,
-      title: "Smart Resume Analysis",
-      description: "AI-powered extraction of technical and soft skills from your resume",
+      title: t.landing.features.items.analysis.title,
+      description: t.landing.features.items.analysis.description,
     },
     {
       icon: Brain,
-      title: "Personalized Quizzes",
-      description: "Tailored assessments based on your specific skill set",
+      title: t.landing.features.items.quiz.title,
+      description: t.landing.features.items.quiz.description,
     },
     {
       icon: BarChart3,
-      title: "Detailed Feedback",
-      description: "Comprehensive reports with actionable improvement suggestions",
+      title: t.landing.features.items.feedback.title,
+      description: t.landing.features.items.feedback.description,
+    },
+    {
+      icon: Mic,
+      title: t.landing.features.items.interview.title,
+      description: t.landing.features.items.interview.description,
     },
     {
       icon: Users,
-      title: "Career Ready",
-      description: "Build confidence and stand out in tech job interviews",
+      title: t.landing.features.items.ready.title,
+      description: t.landing.features.items.ready.description,
     },
-  ];
+  ]
 
   return (
     <div className="min-h-screen">
@@ -63,18 +73,14 @@ const LandingPage = () => {
         <div className="relative container mx-auto px-4 py-20 lg:py-32">
           <div className="text-center max-w-4xl mx-auto animate-slide-in">
             <h1 className="text-4xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-primary-glow bg-clip-text text-transparent">
-              VeriCV
+              {t.landing.hero.title}
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-4">
-              Discover your real strengths.
-            </p>
-            <p className="text-lg md:text-xl text-muted-foreground mb-12">
-              Be job-ready.
-            </p>
+            <p className="text-xl md:text-2xl text-muted-foreground mb-4">{t.landing.hero.subtitle}</p>
+            <p className="text-lg md:text-xl text-muted-foreground mb-12">{t.landing.hero.cta}</p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild variant="hero" size="xl" className="animate-float">
-                <Link to="/upload">Upload Resume</Link>
+                <Link to="/upload">{t.landing.hero.uploadButton}</Link>
               </Button>
             </div>
           </div>
@@ -85,10 +91,8 @@ const LandingPage = () => {
       <section className="py-20 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How It Works</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Get personalized insights into your skills in just four simple steps
-            </p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.landing.howItWorks.title}</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{t.landing.howItWorks.subtitle}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -114,10 +118,8 @@ const LandingPage = () => {
       <section className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose VeriCV?</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Advanced AI technology meets career development
-            </p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.landing.features.title}</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{t.landing.features.subtitle}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
@@ -143,17 +145,15 @@ const LandingPage = () => {
       {/* CTA Section */}
       <section className="py-20 gradient-hero">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Get Started?</h2>
-          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Upload your resume and discover your true potential with AI-powered analysis
-          </p>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">{t.landing.cta.title}</h2>
+          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">{t.landing.cta.subtitle}</p>
           <Button asChild variant="hero" size="xl">
-            <Link to="/upload">Upload Your Resume</Link>
+            <Link to="/upload">{t.landing.cta.button}</Link>
           </Button>
         </div>
       </section>
     </div>
-  );
-};
+  )
+}
 
-export default LandingPage;
+export default LandingPage

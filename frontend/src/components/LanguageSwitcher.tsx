@@ -1,23 +1,12 @@
-import { useTranslation } from 'react-i18next';
-import { Button } from './ui/button';
-import { Globe } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
+"use client"
+
+import { useLanguage } from "@/context/LanguageContext"
+import { Button } from "./ui/button"
+import { Globe } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu"
 
 export function LanguageSwitcher() {
-  const { i18n } = useTranslation();
-
-  const changeLanguage = (lng: string) => {
-    i18n.changeLanguage(lng);
-    // Update HTML dir and lang attributes
-    document.documentElement.dir = lng === 'ar' ? 'rtl' : 'ltr';
-    document.documentElement.lang = lng;
-    localStorage.setItem('i18nextLng', lng);
-  };
+  const { language, setLanguage } = useLanguage()
 
   return (
     <DropdownMenu>
@@ -27,13 +16,13 @@ export function LanguageSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => changeLanguage('en')}>
+        <DropdownMenuItem onClick={() => setLanguage("en")} className={language === "en" ? "bg-accent" : ""}>
           English
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => changeLanguage('ar')}>
+        <DropdownMenuItem onClick={() => setLanguage("ar")} className={language === "ar" ? "bg-accent" : ""}>
           العربية
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+  )
 }
