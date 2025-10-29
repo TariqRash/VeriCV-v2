@@ -17,7 +17,7 @@ def generate_questions_view(request):
       JSON:  { "cv_id": <int> }               -> uses a server-stored CV file
       OR multipart/form-data with file under one of:
               'cv' | 'file' | 'pdf' | 'cv_file' | 'resume' | 'document'
-    RESP: { "questions": [ {question, options?, answer?}, ... ] }
+    RESP: { "questions": [ {question, options?, answer?}, ... ], "quiz_id": <int> }
     """
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method."}, status=400)
@@ -35,6 +35,7 @@ def generate_questions_view(request):
                 try:
                     cv_obj = CV.objects.get(pk=cv_id)
                     cv_file = cv_obj.file  # FileField
+                    logger.info(f"Using CV ID: {cv_id}")
                 except CV.DoesNotExist:
                     return JsonResponse({"error": "CV not found."}, status=404)
     except Exception as e:
@@ -46,6 +47,7 @@ def generate_questions_view(request):
         for key in ["cv", "file", "pdf", "cv_file", "resume", "document"]:
             if key in request.FILES:
                 cv_file = request.FILES[key]
+                logger.info(f"Using uploaded file from key: {key}")
                 break
 
         if not cv_file:
@@ -54,6 +56,7 @@ def generate_questions_view(request):
     # Extract text & generate questions
     try:
         text = extract_text_from_pdf(cv_file)
+        logger.info(f"Extracted text length: {len(text)}")
 
         # Detect language for quiz generation
         language = 'en'  # default
@@ -62,18 +65,28 @@ def generate_questions_view(request):
                 language = cv_obj.detected_language or 'en'
             else:
                 language = detect_cv_language(text)
+            logger.info(f"Detected language: {language}")
         except Exception as e:
             logger.error(f"Language detection error: {e}")
             language = 'en'
 
         questions_data = generate_questions_from_cv(text, language=language)
         questions = _normalize_questions(questions_data)
+        logger.info(f"Generated {len(questions)} questions")
 
-        if request.user.is_authenticated and cv_obj:
+        if request.user.is_authenticated:
             try:
+                # Use existing CV or create a temporary one
+                if not cv_obj and cv_file:
+                    cv_obj = CV.objects.create(
+                        user=request.user,
+                        title="Quick Quiz CV",
+                        file=cv_file
+                    )
+                
                 quiz = Quiz.objects.create(
                     user=request.user,
-                    title=f"Quiz for {cv_obj.title}",
+                    title=f"Quiz for {cv_obj.title if cv_obj else 'CV'}",
                     cv=cv_obj
                 )
                 
@@ -85,17 +98,25 @@ def generate_questions_view(request):
                         correct_answer=q.get('correctAnswer', 0)
                     )
                 
+                logger.info(f"Created quiz with ID: {quiz.id}")
+                
                 return JsonResponse({
                     "questions": questions,
                     "language": language,
-                    "quiz_id": quiz.id
-                }, status=200, safe=False)
+                    "quiz_id": quiz.id,
+                    "cv_id": cv_obj.id if cv_obj else None
+                }, status=200)
             except Exception as e:
                 logger.error(f"Error saving quiz: {e}")
+                return JsonResponse({
+                    "questions": questions,
+                    "language": language,
+                    "error": "Quiz saved with errors"
+                }, status=200)
         
-        return JsonResponse({"questions": questions, "language": language}, status=200, safe=False)
+        return JsonResponse({"questions": questions, "language": language}, status=200)
     except Exception as e:
-        logger.error(f"Error generating questions: {e}")
+        logger.error(f"Error generating questions: {e}", exc_info=True)
         return JsonResponse({"error": f"Failed to generate questions: {str(e)}"}, status=500)
 
 
@@ -103,11 +124,8 @@ def generate_questions_view(request):
 def submit_answers_view(request):
     """
     POST /api/ai/submit/
-    Body can be:
-      { "answers": [ {"question": "...", "answer": "A"}, ... ] }
-      or { "answers": { "<q1>": "A", "<q2>": "B", ... } }
-
-    Responds with a simple score + normalized results so the Results page can render.
+    Body: { "quiz_id": <int>, "cv_id": <int>, "answers": [...] }
+    Responds with score, result_id, and feedback
     """
     if request.method != "POST":
         return JsonResponse({"error": "Invalid request method."}, status=400)
@@ -117,73 +135,74 @@ def submit_answers_view(request):
         data = json.loads(body)
         answers = data.get("answers", [])
         quiz_id = data.get("quiz_id")
+        cv_id = data.get("cv_id")
 
-        # Normalize answers to a list of {question, answer}
+        logger.info(f"Submitting answers for quiz_id: {quiz_id}, cv_id: {cv_id}")
+        logger.info(f"Received {len(answers)} answers")
+
+        # Normalize answers to a list
         if isinstance(answers, dict):
             answers_list = [{"question": q, "answer": a} for q, a in answers.items()]
         elif isinstance(answers, list):
-            answers_list = []
-            for item in answers:
-                if isinstance(item, dict):
-                    answers_list.append(item)
+            answers_list = answers
         else:
             answers_list = []
 
         total_questions = len(answers_list)
-        correct_count = 0
-        
-        for ans in answers_list:
-            if ans.get('correctAnswer') is not None and ans.get('answer') == ans.get('correctAnswer'):
-                correct_count += 1
+        correct_count = sum(1 for ans in answers_list if ans.get('isCorrect') == True)
         
         score = round((correct_count / total_questions * 100)) if total_questions > 0 else 0
+        logger.info(f"Calculated score: {score}% ({correct_count}/{total_questions})")
 
         result_obj = None
-        if request.user.is_authenticated and quiz_id:
+        feedback_text = ""
+        
+        if request.user.is_authenticated:
             try:
-                quiz = Quiz.objects.get(id=quiz_id)
+                quiz = None
+                cv = None
+                
+                if quiz_id:
+                    quiz = Quiz.objects.get(id=quiz_id, user=request.user)
+                if cv_id:
+                    cv = CV.objects.get(id=cv_id, user=request.user)
+                
+                # Create result with answers stored as JSON
                 result_obj = Result.objects.create(
                     quiz=quiz,
                     user=request.user,
                     score=score,
-                    answers=answers_list
+                    answers=answers_list  # Django JSONField will handle this
                 )
+                logger.info(f"Created result with ID: {result_obj.id}")
                 
-                wrong_answers = [ans for ans in answers_list if ans.get('answer') != ans.get('correctAnswer')]
+                # Generate AI feedback
+                wrong_answers = [ans for ans in answers_list if not ans.get('isCorrect')]
                 feedback_text = generate_feedback_from_ai(wrong_answers, score)
                 
+                # Save feedback
                 Feedback.objects.create(
                     user=request.user,
-                    cv=quiz.cv,
+                    cv=cv,
                     result=result_obj,
                     content=feedback_text,
                     rating=5 if score >= 80 else 4 if score >= 70 else 3
                 )
+                logger.info(f"Created feedback for result {result_obj.id}")
                 
             except Exception as e:
-                logger.error(f"Error saving result: {e}")
+                logger.error(f"Error saving result: {e}", exc_info=True)
 
-        # Turn answers into "results" entries for UI
-        results = [
-            {
-                "skill": _infer_skill_from_question(a.get("question", "")),
-                "score": 100 if a.get('answer') == a.get('correctAnswer') else 0,
-                "category": "technical",
-                "status": "good" if a.get('answer') == a.get('correctAnswer') else "needs_improvement",
-            }
-            for a in answers_list
-        ]
-
-        return JsonResponse(
-            {
-                "score": score,
-                "results": results,
-                "result_id": result_obj.id if result_obj else None,
-            },
-            status=200,
-        )
+        return JsonResponse({
+            "score": score,
+            "result_id": result_obj.id if result_obj else None,
+            "feedback": feedback_text,
+            "correct": correct_count,
+            "total": total_questions
+        }, status=200)
+        
     except Exception as e:
-        logger.error(f"Error submitting answers: {e}")
+        logger.error(f"Error submitting answers: {e}", exc_info=True)
         return JsonResponse({"error": f"Failed to submit answers: {str(e)}"}, status=500)
 
 # -----------------
@@ -220,19 +239,3 @@ def _normalize_questions(raw):
             return [{"question": raw}]
 
     return []
-
-
-def _infer_skill_from_question(q: str) -> str:
-    """Very rough mapping to make Results UI look nice."""
-    s = (q or "").lower()
-    if "react" in s:
-        return "React"
-    if "python" in s:
-        return "Python"
-    if "sql" in s or "database" in s:
-        return "SQL"
-    if "project management" in s:
-        return "Project Management"
-    if "communication" in s:
-        return "Communication"
-    return "General"

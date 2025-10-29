@@ -98,13 +98,10 @@ export async function aiGenerateFromCVId(cvId: number | string) {
   return data // {questions:[...]} or [...]
 }
 
-export async function aiSubmitAnswers(answers: Array<{ question: string; answer: string }>) {
-  const { data } = await api.post("ai/submit/", { answers })
-  return data
-}
-
-export async function submitAnswers(answers: any) {
-  const { data } = await api.post("ai/submit/", { answers })
+export async function submitAnswers(payload: any) {
+  console.log("[v0] submitAnswers called with:", payload)
+  const { data } = await api.post("ai/submit/", payload)
+  console.log("[v0] submitAnswers response:", data)
   return data
 }
 

@@ -317,7 +317,7 @@ const DashboardPage = () => {
             <Button asChild variant="outline" size="lg">
               <Link to="/quiz">
                 <Brain className="w-5 h-5 mr-2" />
-                {language === "ar" ? "اختبار تدريبي" : "Take Practice Quiz"}
+                {language === "ar" ? "اختبار سريع" : "Quick Quiz"}
               </Link>
             </Button>
           </div>
