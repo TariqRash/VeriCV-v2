@@ -1,40 +1,44 @@
+"use client"
+
+import type React from "react"
+
 // src/pages/QuizPage.tsx
-import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { CheckCircle, Clock, ArrowLeft, ArrowRight, Upload as UploadIcon } from "lucide-react";
-import { aiGenerateFromCVId, aiGenerateFromFileSmart, submitAnswers } from "@/api/endpoints";
-import { useNavigate } from "react-router-dom"; // ✅ import this
+import { useEffect, useMemo, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import { CheckCircle, Clock, ArrowLeft, ArrowRight, UploadIcon } from "lucide-react"
+import { aiGenerateFromCVId, aiGenerateFromFileSmart, submitAnswers } from "@/api/endpoints"
+import { useNavigate } from "react-router-dom" // ✅ import this
 
 type Question = {
-  id?: number | string;
-  question: string;
-  options?: string[];
-  correctAnswer?: number;   // optional; backend may not return it
-  skill?: string;
-  topic?: string;  
-  category?: "technical" | "soft" | string; // ✅ include category
-};
+  id?: number | string
+  question: string
+  options?: string[]
+  correctAnswer?: number // optional; backend may not return it
+  skill?: string
+  topic?: string
+  category?: "technical" | "soft" | string // ✅ include category
+}
 
-type QuizState = "generating" | "ready" | "submitting" | "completed" | "error";
+type QuizState = "generating" | "ready" | "submitting" | "completed" | "error"
 
 export default function QuizPage() {
-  const [status, setStatus] = useState<QuizState>("generating");
-  const [error, setError] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number | string>>({});
-  const [timeLeft, setTimeLeft] = useState(10 * 60); // 10 minutes
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const nav = useNavigate(); // ✅ now available
+  const [status, setStatus] = useState<QuizState>("generating")
+  const [error, setError] = useState<string | null>(null)
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [current, setCurrent] = useState(0)
+  const [answers, setAnswers] = useState<Record<number, number | string>>({})
+  const [timeLeft, setTimeLeft] = useState(10 * 60) // 10 minutes
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const nav = useNavigate() // ✅ now available
 
-  const cvId = useMemo(() => localStorage.getItem("last_cv_id"), []);
+  const cvId = useMemo(() => localStorage.getItem("last_cv_id"), [])
 
   // helper: normalize API shapes
   function normalize(raw: any): Question[] {
-    if (!raw) return [];
-    const arr = Array.isArray(raw) ? raw : raw.questions || [];
+    if (!raw) return []
+    const arr = Array.isArray(raw) ? raw : raw.questions || []
     return arr.map((q: any, i: number) => ({
       id: q.id ?? i + 1,
       question: q.question ?? q.prompt ?? q.text ?? String(q),
@@ -42,104 +46,112 @@ export default function QuizPage() {
       correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
       skill: q.skill ?? q.topic ?? undefined,
       category: q.category ?? undefined, // ✅ safe
-    }));
+    }))
   }
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setStatus("generating");
-      setError(null);
+    let mounted = true
+    ;(async () => {
+      setStatus("generating")
+      setError(null)
       try {
         if (cvId) {
-          const data = await aiGenerateFromCVId(cvId);
-          const qs = normalize(data);
-          if (!qs.length) throw new Error("No questions were generated. Please try again.");
+          const data = await aiGenerateFromCVId(cvId)
+          const qs = normalize(data)
+          if (!qs.length) throw new Error("No questions were generated. Please try again.")
           if (mounted) {
-            setQuestions(qs);
-            setStatus("ready");
+            setQuestions(qs)
+            setStatus("ready")
+            if (data.quiz_id) {
+              localStorage.setItem("current_quiz_id", data.quiz_id)
+            }
           }
         } else {
-          // No cvId? allow manual upload flow
-          setStatus("ready");
+          setStatus("ready")
         }
       } catch (e: any) {
-        setError(e?.response?.data?.error || e?.message || "Failed to generate questions.");
-        setStatus("error");
+        setError(e?.response?.data?.error || e?.message || "Failed to generate questions.")
+        setStatus("error")
       }
-    })();
+    })()
     return () => {
-      mounted = false;
-    };
-  }, [cvId]);
+      mounted = false
+    }
+  }, [cvId])
 
   useEffect(() => {
-    if (status !== "ready") return;
-    if (timeLeft <= 0) return;
-    const t = setTimeout(() => setTimeLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [status, timeLeft]);
+    if (status !== "ready") return
+    if (timeLeft <= 0) return
+    const t = setTimeout(() => setTimeLeft((s) => s - 1), 1000)
+    return () => clearTimeout(t)
+  }, [status, timeLeft])
 
-  const progress = questions.length ? ((current + 1) / questions.length) * 100 : 0;
+  const progress = questions.length ? ((current + 1) / questions.length) * 100 : 0
 
   const handleAnswerSelect = (val: number | string) => {
-    setAnswers((prev) => ({ ...prev, [current]: val }));
-  };
+    setAnswers((prev) => ({ ...prev, [current]: val }))
+  }
 
   const handleNext = () => {
-    if (current < questions.length - 1) setCurrent((i) => i + 1);
-  };
+    if (current < questions.length - 1) setCurrent((i) => i + 1)
+  }
 
   const handlePrev = () => {
-    if (current > 0) setCurrent((i) => i - 1);
-  };
+    if (current > 0) setCurrent((i) => i - 1)
+  }
 
   const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return `${m}:${String(r).padStart(2, "0")}`;
-  };
+    const m = Math.floor(s / 60)
+    const r = s % 60
+    return `${m}:${String(r).padStart(2, "0")}`
+  }
 
   const submit = async () => {
-    setStatus("submitting");
+    setStatus("submitting")
     try {
-      // Build payload for backend
-      const payload = questions.map((q, idx) => ({
-        question: q.question,
-        answer: answers[idx],
-        correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
-        options: q.options,
-        skill: q.skill,
-        category: q.category, // ✅ type now knows this
-      }));
+      const payload = {
+        quiz_id: localStorage.getItem("current_quiz_id"),
+        answers: questions.map((q, idx) => ({
+          question: q.question,
+          answer: answers[idx],
+          correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
+          options: q.options,
+          skill: q.skill,
+          category: q.category,
+        })),
+      }
 
-      await submitAnswers(payload);
+      const response = await submitAnswers(payload)
 
       // Compute a quick summary and navigate to /results
-      const total = questions.filter(q => Array.isArray(q.options) && typeof q.correctAnswer === "number").length;
+      const total = questions.filter((q) => Array.isArray(q.options) && typeof q.correctAnswer === "number").length
       const correct = questions.reduce((acc, q, i) => {
         if (Array.isArray(q.options) && typeof q.correctAnswer === "number" && answers[i] === q.correctAnswer) {
-          return acc + 1;
+          return acc + 1
         }
-        return acc;
-      }, 0);
-      const overallScore = total > 0 ? Math.round((correct / total) * 100) : 75;
+        return acc
+      }, 0)
+      const overallScore = response.score || (total > 0 ? Math.round((correct / total) * 100) : 75)
 
-      const perSkill: Record<string, { sum: number; count: number; category: string }> = {};
+      const perSkill: Record<string, { sum: number; count: number; category: string }> = {}
       questions.forEach((q, i) => {
-        const skill = q.skill || q.topic || "General";
-        const category = q.category || (skill === "Communication" ? "soft" : "technical"); // ✅ fixed 'const'
-        const hasOpt = Array.isArray(q.options) && typeof q.correctAnswer === "number";
-        const thisScore = hasOpt ? (answers[i] === q.correctAnswer ? 100 : 0) : 70;
-        if (!perSkill[skill]) perSkill[skill] = { sum: 0, count: 0, category };
-        perSkill[skill].sum += thisScore;
-        perSkill[skill].count += 1;
-      });
+        const skill = q.skill || q.topic || "General"
+        const category = q.category || (skill === "Communication" ? "soft" : "technical")
+        const hasOpt = Array.isArray(q.options) && typeof q.correctAnswer === "number"
+        const thisScore = hasOpt ? (answers[i] === q.correctAnswer ? 100 : 0) : 70
+        if (!perSkill[skill]) perSkill[skill] = { sum: 0, count: 0, category }
+        perSkill[skill].sum += thisScore
+        perSkill[skill].count += 1
+      })
       const skills = Object.entries(perSkill).map(([skill, agg]) => ({
         skill,
         score: Math.round(agg.sum / Math.max(1, agg.count)),
         category: agg.category,
-      }));
+      }))
+
+      if (response.result_id) {
+        localStorage.setItem("last_result_id", response.result_id)
+      }
 
       nav("/results", {
         state: {
@@ -147,47 +159,48 @@ export default function QuizPage() {
           skills,
           answers,
           questions,
+          result_id: response.result_id,
         },
-      });
+      })
 
-      setStatus("completed");
+      setStatus("completed")
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Failed to submit answers.");
-      setStatus("error");
+      setError(e?.response?.data?.error || e?.message || "Failed to submit answers.")
+      setStatus("error")
     }
-  };
+  }
 
   const handleLocalPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+    const f = e.target.files?.[0]
+    if (!f) return
+    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")
     if (!isPdf) {
-      setError("Please choose a PDF file.");
-      setPdfFile(null);
-      return;
+      setError("Please choose a PDF file.")
+      setPdfFile(null)
+      return
     }
-    setError(null);
-    setPdfFile(f);
-  };
+    setError(null)
+    setPdfFile(f)
+  }
 
   const generateFromFile = async () => {
-    if (!pdfFile) return;
-    setStatus("generating");
-    setError(null);
-    setQuestions([]);
+    if (!pdfFile) return
+    setStatus("generating")
+    setError(null)
+    setQuestions([])
     try {
-      const data = await aiGenerateFromFileSmart(pdfFile);
-      const qs = normalize(data);
-      if (!qs.length) throw new Error("No questions were generated from the PDF.");
-      setQuestions(qs);
-      setCurrent(0);
-      setAnswers({});
-      setStatus("ready");
+      const data = await aiGenerateFromFileSmart(pdfFile)
+      const qs = normalize(data)
+      if (!qs.length) throw new Error("No questions were generated from the PDF.")
+      setQuestions(qs)
+      setCurrent(0)
+      setAnswers({})
+      setStatus("ready")
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Generation failed.");
-      setStatus("error");
+      setError(e?.response?.data?.error || e?.message || "Generation failed.")
+      setStatus("error")
     }
-  };
+  }
 
   /* ---------- UI ---------- */
 
@@ -204,7 +217,7 @@ export default function QuizPage() {
           </Card>
         </div>
       </div>
-    );
+    )
   }
 
   if (status === "completed") {
@@ -215,9 +228,7 @@ export default function QuizPage() {
             <CardContent className="p-12">
               <CheckCircle className="w-16 h-16 text-success mx-auto mb-6" />
               <h1 className="text-3xl font-bold mb-4">Quiz Completed!</h1>
-              <p className="text-lg text-muted-foreground mb-8">
-                Great job! Your answers have been submitted.
-              </p>
+              <p className="text-lg text-muted-foreground mb-8">Great job! Your answers have been submitted.</p>
               <Button variant="hero" size="lg" onClick={() => nav("/results")}>
                 View Results
               </Button>
@@ -225,7 +236,7 @@ export default function QuizPage() {
           </Card>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -242,7 +253,13 @@ export default function QuizPage() {
           </div>
           <Progress value={progress} className="h-2" />
           <p className="text-sm text-muted-foreground mt-2">
-            {questions.length ? <>Question {current + 1} of {questions.length}</> : <>Upload a PDF to begin</>}
+            {questions.length ? (
+              <>
+                Question {current + 1} of {questions.length}
+              </>
+            ) : (
+              <>Upload a PDF to begin</>
+            )}
           </p>
         </div>
 
@@ -255,7 +272,11 @@ export default function QuizPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
                 <input type="file" accept="application/pdf,.pdf" onChange={handleLocalPick} />
-                {pdfFile && <span className="text-sm">Selected: <strong>{pdfFile.name}</strong></span>}
+                {pdfFile && (
+                  <span className="text-sm">
+                    Selected: <strong>{pdfFile.name}</strong>
+                  </span>
+                )}
               </div>
               <Button variant="hero" size="lg" className="gap-2" onClick={generateFromFile} disabled={!pdfFile}>
                 <UploadIcon className="w-4 h-4" />
@@ -284,7 +305,7 @@ export default function QuizPage() {
               {Array.isArray(questions[current].options) && questions[current].options!.length > 0 ? (
                 <div className="space-y-3">
                   {questions[current].options!.map((opt, idx) => {
-                    const selected = answers[current] === idx;
+                    const selected = answers[current] === idx
                     return (
                       <button
                         key={idx}
@@ -304,7 +325,7 @@ export default function QuizPage() {
                           <span>{opt}</span>
                         </div>
                       </button>
-                    );
+                    )
                   })}
                 </div>
               ) : (
@@ -350,5 +371,5 @@ export default function QuizPage() {
         {status === "error" && error && <div className="text-red-600 text-sm mt-4">{error}</div>}
       </div>
     </div>
-  );
+  )
 }

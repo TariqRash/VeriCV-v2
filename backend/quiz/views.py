@@ -11,8 +11,8 @@ class QuizViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
-            return Quiz.objects.all()
-        return Quiz.objects.filter(user=user)
+            return Quiz.objects.all().prefetch_related('questions')
+        return Quiz.objects.filter(user=user).prefetch_related('questions').order_by('-created_at')
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -38,8 +38,8 @@ class ResultViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_superuser:
-            return Result.objects.all()
-        return Result.objects.filter(user=user)
+            return Result.objects.all().select_related('quiz', 'quiz__cv')
+        return Result.objects.filter(user=user).select_related('quiz', 'quiz__cv').order_by('-completed_at')
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
