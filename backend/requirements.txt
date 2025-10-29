@@ -6,6 +6,9 @@ djangorestframework-simplejwt>=3.3.0
 python-dotenv>=1.0.1
 psycopg2-binary>=2.9.9
 
+# Database URL parsing for Supabase
+dj-database-url>=2.1.0
+
 # AI / PDF tooling
 requests>=2.32.3
 PyPDF2>=3.0.0
