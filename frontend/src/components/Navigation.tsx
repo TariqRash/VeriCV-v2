@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 // import { Menu, X, FileText, Brain, User, Home, Info, LogOut, LogIn, UserPlus } from "lucide-react";
 import { Menu, X, FileText, User, Home, Info, LogOut, LogIn, UserPlus } from "lucide-react";
 import { isAuthenticated, hasUploadedCV, logout, subscribeAuth } from "@/utils/auth";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 
 const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,6 +84,7 @@ const Navigation = () => {
 
         {/* Auth buttons */}
         <div className="hidden md:flex items-center gap-2">
+          <LanguageSwitcher />
           {!authed ? (
             <>
               <Button variant="outline" onClick={() => nav("/login")}><LogIn className="w-4 h-4 mr-2" />Sign In</Button>
@@ -109,6 +111,10 @@ const Navigation = () => {
                 {item.name}
               </NavLink>
             ))}
+            <div className="flex items-center gap-2 pt-2 pb-2">
+              <span className="text-sm">Language:</span>
+              <LanguageSwitcher />
+            </div>
             <div className="flex gap-2 pt-2">
               {!authed ? (
                 <>
