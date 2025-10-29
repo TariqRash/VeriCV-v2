@@ -8,7 +8,7 @@ import { Menu, X, FileText, Home, Info, LogOut, LogIn, UserPlus, LayoutDashboard
 import { isAuthenticated, hasUploadedCV, logout, subscribeAuth } from "@/utils/auth"
 import { LanguageSwitcher } from "./LanguageSwitcher"
 import { useLanguage } from "@/context/LanguageContext"
-import api from "@/utils/api"
+import { getUserProfile } from "@/api/endpoints"
 
 const Navigation = () => {
   const { t, language } = useLanguage()
@@ -60,8 +60,7 @@ const Navigation = () => {
           return
         }
 
-        // Otherwise fetch from API
-        const { data } = await api.get("users/profile/")
+        const data = await getUserProfile()
         if (data?.name) {
           setUserName(data.name)
           localStorage.setItem("user_name", data.name)
