@@ -165,6 +165,7 @@ if os.getenv("DEBUG", "True") == "True":
 else:
     CORS_ALLOWED_ORIGINS = [
         'https://vericv.app',
+        'https://prod.vericv.app',
         'http://104.248.136.7',
     ]
 

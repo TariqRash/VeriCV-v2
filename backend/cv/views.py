@@ -4,12 +4,6 @@ from rest_framework.response import Response
 from .models import CV
 from .serializers import CVSerializer
 from rest_framework.permissions import IsAuthenticated
-from ai.ai_logic import (
-    extract_text_from_pdf,
-    detect_cv_language,
-    extract_cv_information,
-    detect_city_from_ip
-)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,8 +17,15 @@ class CVViewSet(viewsets.ModelViewSet):
         # Save CV first
         cv_instance = serializer.save(user=self.request.user)
 
-        # Extract text and information from CV
+        # Extract text and information from CV (optional, can fail gracefully)
         try:
+            from ai.ai_logic import (
+                extract_text_from_pdf,
+                detect_cv_language,
+                extract_cv_information,
+                detect_city_from_ip
+            )
+
             cv_text = extract_text_from_pdf(cv_instance.file)
 
             # Detect language
@@ -48,6 +49,7 @@ class CVViewSet(viewsets.ModelViewSet):
             logger.info(f"CV {cv_instance.id} processed successfully for user {self.request.user.username}")
         except Exception as e:
             logger.error(f"Error extracting CV information: {e}")
+            # Don't fail the upload, just log the error
 
     def get_client_ip(self):
         """Extract client IP from request."""
@@ -77,8 +79,15 @@ class CVViewSet(viewsets.ModelViewSet):
                 file=file
             )
 
-            # Extract information asynchronously
+            # Extract information asynchronously (don't fail if this errors)
             try:
+                from ai.ai_logic import (
+                    extract_text_from_pdf,
+                    detect_cv_language,
+                    extract_cv_information,
+                    detect_city_from_ip
+                )
+
                 cv_text = extract_text_from_pdf(cv.file)
                 language = detect_cv_language(cv_text)
                 cv.detected_language = language
@@ -96,6 +105,7 @@ class CVViewSet(viewsets.ModelViewSet):
                 cv.save()
             except Exception as e:
                 logger.error(f"Error processing CV: {e}")
+                # Continue anyway, just without extracted info
 
             return Response({
                 'cv_id': cv.id,
@@ -104,10 +114,10 @@ class CVViewSet(viewsets.ModelViewSet):
                 'title': cv.title,
                 'detected_language': cv.detected_language,
                 'extracted_info': {
-                    'name': cv.extracted_name,
-                    'phone': cv.extracted_phone,
-                    'city': cv.extracted_city or cv.ip_detected_city,
-                    'job_titles': cv.extracted_job_titles
+                    'name': cv.extracted_name or '',
+                    'phone': cv.extracted_phone or '',
+                    'city': cv.extracted_city or cv.ip_detected_city or '',
+                    'job_titles': cv.extracted_job_titles or []
                 }
             }, status=status.HTTP_201_CREATED)
 
