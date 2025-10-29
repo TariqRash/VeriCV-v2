@@ -42,26 +42,9 @@ export default function ResultsPage() {
       try {
         setLoading(true)
         console.log("[v0] ResultsPage: Starting fetch...")
-        console.log("[v0] Location state:", location?.state)
-        console.log("[v0] LocalStorage result_id:", localStorage.getItem("last_result_id"))
 
-        const stateData = location?.state as any
-        if (stateData?.overallScore !== undefined && stateData?.skills) {
-          console.log("[v0] ResultsPage: Using navigation state data:", stateData)
-          setResultData({
-            overallScore: stateData.overallScore,
-            skills: stateData.skills,
-            recommendations: stateData.recommendations || [],
-            feedback: stateData.feedback,
-          })
-          setLoading(false)
-          return
-        }
-
-        const resultId =
-          localStorage.getItem("last_result_id") ||
-          new URLSearchParams(location.search).get("result_id") ||
-          stateData?.result_id
+        const urlParams = new URLSearchParams(location.search)
+        const resultId = urlParams.get("result_id") || localStorage.getItem("last_result_id")
 
         console.log("[v0] Resolved result_id:", resultId)
 
@@ -91,7 +74,7 @@ export default function ResultsPage() {
               answers.forEach((a: any, idx: number) => {
                 const skill = a.skill || "General"
                 const category = a.category || "technical"
-                const score = a.isCorrect ? 100 : a.score || 0
+                const score = a.isCorrect ? 100 : 0
 
                 console.log(`[v0] Answer ${idx}: skill=${skill}, score=${score}, isCorrect=${a.isCorrect}`)
 
@@ -127,7 +110,7 @@ export default function ResultsPage() {
           }
         }
 
-        console.log("[v0] ResultsPage: Fetching latest results...")
+        console.log("[v0] ResultsPage: No result_id, fetching latest results...")
         const { data } = await api.get("quiz/results/")
         console.log("[v0] Latest results:", data)
 
@@ -149,7 +132,7 @@ export default function ResultsPage() {
             answers.forEach((a: any) => {
               const skill = a.skill || "General"
               const category = a.category || "technical"
-              const score = a.isCorrect ? 100 : a.score || 0
+              const score = a.isCorrect ? 100 : 0
 
               if (!skillMap[skill]) {
                 skillMap[skill] = { total: 0, count: 0, category }

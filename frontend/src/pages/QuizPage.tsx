@@ -119,7 +119,6 @@ export default function QuizPage() {
           options: q.options,
           skill: q.skill || "General",
           category: q.category || "technical",
-          isCorrect: typeof q.correctAnswer === "number" ? answers[idx] === q.correctAnswer : undefined,
         })),
       }
 
@@ -127,39 +126,15 @@ export default function QuizPage() {
       const response = await submitAnswers(payload)
       console.log("[v0] Submit response:", response)
 
-      const perSkill: Record<string, { sum: number; count: number; category: string }> = {}
-      questions.forEach((q, i) => {
-        const skill = q.skill || "General"
-        const category = q.category || "technical"
-        const hasOpt = Array.isArray(q.options) && typeof q.correctAnswer === "number"
-        const thisScore = hasOpt ? (answers[i] === q.correctAnswer ? 100 : 0) : 70
-        if (!perSkill[skill]) perSkill[skill] = { sum: 0, count: 0, category }
-        perSkill[skill].sum += thisScore
-        perSkill[skill].count += 1
-      })
-
-      const skills = Object.entries(perSkill).map(([skill, agg]) => ({
-        skill,
-        score: Math.round(agg.sum / Math.max(1, agg.count)),
-        category: agg.category,
-      }))
-
-      const overallScore = response.score || Math.round(skills.reduce((sum, s) => sum + s.score, 0) / skills.length)
-
       if (response.result_id) {
         localStorage.setItem("last_result_id", String(response.result_id))
         console.log("[v0] Stored result_id:", response.result_id)
       }
 
-      nav("/results", {
+      nav(`/results?result_id=${response.result_id}`, {
         state: {
-          overallScore,
-          skills,
-          answers: payload.answers,
-          questions,
           result_id: response.result_id,
-          feedback: response.feedback,
-          recommendations: response.recommendations,
+          quiz_id: response.quiz_id,
         },
       })
 
