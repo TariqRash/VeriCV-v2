@@ -193,6 +193,19 @@ else:
         'http://104.248.136.7',
     ]
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://vericv.app',
+    'https://prod.vericv.app',
+    'http://104.248.136.7',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Supabase Configuration
