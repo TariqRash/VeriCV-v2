@@ -28,3 +28,7 @@ reportlab>=4.0.0
 
 # Server
 gunicorn>=21.2.0
+
+# Supabase Python client for direct API access
+supabase>=2.0.0
+postgrest>=0.13.0

@@ -7,6 +7,12 @@ from feedback.models import Feedback
 from .ai_logic import extract_text_from_pdf, generate_questions_from_cv, detect_cv_language, generate_feedback_from_ai
 import json
 import logging
+from core.supabase_client import (
+    save_quiz_to_supabase,
+    save_questions_to_supabase,
+    save_result_to_supabase,
+    get_quiz_questions
+)
 
 logger = logging.getLogger(__name__)
 
@@ -84,30 +90,26 @@ def generate_questions_view(request):
                         file=cv_file
                     )
                 
-                quiz = Quiz.objects.create(
-                    user=request.user,
+                # Save quiz to Supabase
+                quiz_data = save_quiz_to_supabase(
+                    user_id=request.user.id,
                     title=f"Quiz for {cv_obj.title if cv_obj else 'CV'}",
-                    cv=cv_obj
+                    cv_id=cv_obj.id if cv_obj else None
                 )
+                quiz_id = quiz_data['id']
+                logger.info(f"[v0] Created quiz in Supabase with ID: {quiz_id}")
                 
-                for idx, q in enumerate(questions):
-                    Question.objects.create(
-                        quiz=quiz,
-                        text=q.get('question', ''),
-                        options=q.get('options', []),
-                        correct_answer=q.get('correctAnswer', 0)
-                    )
-                
-                logger.info(f"Created quiz with ID: {quiz.id}")
+                # Save questions to Supabase
+                save_questions_to_supabase(quiz_id, questions)
                 
                 return JsonResponse({
                     "questions": questions,
                     "language": language,
-                    "quiz_id": quiz.id,
+                    "quiz_id": quiz_id,
                     "cv_id": cv_obj.id if cv_obj else None
                 }, status=200)
             except Exception as e:
-                logger.error(f"Error saving quiz: {e}")
+                logger.error(f"Error saving quiz to Supabase: {e}", exc_info=True)
                 return JsonResponse({
                     "questions": questions,
                     "language": language,
@@ -150,7 +152,6 @@ def submit_answers_view(request):
         logger.critical(f"[v0] === SUBMIT ANSWERS START ===")
         logger.critical(f"[v0] quiz_id: {quiz_id}, cv_id: {cv_id}, answers count: {len(answers)}")
 
-        quiz_obj = None
         cv_obj = None
         
         if cv_id:
@@ -162,62 +163,35 @@ def submit_answers_view(request):
         
         if quiz_id:
             try:
-                quiz_obj = Quiz.objects.get(id=quiz_id)
-                logger.info(f"[v0] Found existing quiz: {quiz_obj.id}")
-            except Quiz.DoesNotExist:
-                logger.warning(f"[v0] Quiz {quiz_id} not found, will create new one")
-        
-        # If no quiz found, create one
-        if not quiz_obj and request.user.is_authenticated:
-            quiz_obj = Quiz.objects.create(
-                user=request.user,
-                title=f"Quiz for {cv_obj.title if cv_obj else 'CV'}",
-                cv=cv_obj
-            )
-            logger.info(f"[v0] Created new quiz: {quiz_obj.id}")
-            
-            for idx, ans in enumerate(answers):
-                correct_ans = ans.get('correctAnswer', 0)
-                # Ensure it's an integer
-                if isinstance(correct_ans, str):
-                    try:
-                        correct_ans = int(correct_ans)
-                    except:
-                        correct_ans = 0
+                questions = get_quiz_questions(quiz_id)
+                logger.info(f"[v0] Found {len(questions)} questions from Supabase")
                 
-                Question.objects.create(
-                    quiz=quiz_obj,
-                    text=ans.get('question', f'Question {idx+1}'),
-                    options=ans.get('options', []),
-                    correct_answer=correct_ans
-                )
-            logger.info(f"[v0] Created {len(answers)} questions for quiz {quiz_obj.id}")
-
-        if quiz_obj:
-            questions = list(quiz_obj.questions.all().order_by('id'))
-            logger.info(f"[v0] Found {len(questions)} questions in quiz")
-            
-            # Mark each answer as correct or incorrect
-            for i, ans in enumerate(answers):
-                if i < len(questions):
-                    question = questions[i]
-                    user_answer = ans.get('answer')
-                    correct_answer = question.correct_answer
-                    
-                    # Compare answers (both should be integers now)
-                    if isinstance(user_answer, str):
-                        try:
-                            user_answer = int(user_answer)
-                        except:
-                            user_answer = -1
-                    
-                    ans['isCorrect'] = (user_answer == correct_answer)
-                    ans['correctAnswer'] = correct_answer
-                    
-                    logger.info(f"[v0] Q{i+1}: User={user_answer}, Correct={correct_answer}, IsCorrect={ans['isCorrect']}")
-                else:
+                # Mark each answer as correct or incorrect
+                for i, ans in enumerate(answers):
+                    if i < len(questions):
+                        question = questions[i]
+                        user_answer = ans.get('answer')
+                        correct_answer = question['correct_answer']
+                        
+                        # Compare answers
+                        if isinstance(user_answer, str):
+                            try:
+                                user_answer = int(user_answer)
+                            except:
+                                user_answer = -1
+                        
+                        ans['isCorrect'] = (user_answer == correct_answer)
+                        ans['correctAnswer'] = correct_answer
+                        
+                        logger.info(f"[v0] Q{i+1}: User={user_answer}, Correct={correct_answer}, IsCorrect={ans['isCorrect']}")
+                    else:
+                        ans['isCorrect'] = False
+                        logger.warning(f"[v0] No question found for answer {i}")
+            except Exception as e:
+                logger.error(f"[v0] Error getting questions from Supabase: {e}")
+                # Mark all as incorrect if we can't validate
+                for ans in answers:
                     ans['isCorrect'] = False
-                    logger.warning(f"[v0] No question found for answer {i}")
 
         total_questions = len(answers)
         correct_count = sum(1 for ans in answers if ans.get('isCorrect') == True)
@@ -228,39 +202,45 @@ def submit_answers_view(request):
         result_obj = None
         feedback_text = ""
         
-        if request.user.is_authenticated:
+        if request.user.is_authenticated and quiz_id:
             try:
-                result_obj = Result.objects.create(
-                    quiz=quiz_obj,
-                    user=request.user,
+                result_data = save_result_to_supabase(
+                    quiz_id=quiz_id,
+                    user_id=request.user.id,
                     score=score,
                     answers=answers
                 )
-                logger.info(f"[v0] ✓ CREATED RESULT WITH ID: {result_obj.id}")
+                result_id = result_data['id']
+                logger.critical(f"[v0] ✓ CREATED RESULT IN SUPABASE WITH ID: {result_id}")
                 
                 # Generate AI feedback
                 wrong_answers = [ans for ans in answers if not ans.get('isCorrect')]
                 feedback_text = generate_feedback_from_ai(wrong_answers, score)
                 logger.info(f"[v0] Generated feedback: {len(feedback_text)} chars")
                 
-                # Save feedback
+                # Save feedback using Django ORM (only for feedback table)
                 if cv_obj:
-                    Feedback.objects.create(
-                        user=request.user,
-                        cv=cv_obj,
-                        result=result_obj,
-                        content=feedback_text,
-                        rating=5 if score >= 80 else 4 if score >= 70 else 3
-                    )
-                    logger.info(f"[v0] ✓ Created feedback for result {result_obj.id}")
+                    try:
+                        result_obj = Result.objects.get(id=result_id)
+                        Feedback.objects.create(
+                            user=request.user,
+                            cv=cv_obj,
+                            result=result_obj,
+                            content=feedback_text,
+                            rating=5 if score >= 80 else 4 if score >= 70 else 3
+                        )
+                        logger.info(f"[v0] ✓ Created feedback for result {result_id}")
+                    except Exception as e:
+                        logger.error(f"[v0] Error saving feedback: {e}")
                 
             except Exception as e:
-                logger.error(f"[v0] ✗ Error saving result: {e}", exc_info=True)
+                logger.critical(f"[v0] ✗ Error saving result to Supabase: {e}", exc_info=True)
+                result_id = None
 
         response_data = {
             "score": score,
-            "result_id": result_obj.id if result_obj else None,
-            "quiz_id": quiz_obj.id if quiz_obj else None,
+            "result_id": result_id if 'result_id' in locals() else None,
+            "quiz_id": quiz_id,
             "feedback": feedback_text,
             "correct": correct_count,
             "total": total_questions,
