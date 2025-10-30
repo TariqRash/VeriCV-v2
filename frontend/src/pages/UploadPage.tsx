@@ -114,7 +114,7 @@ export default function UploadPage() {
         extracted_city: res?.extracted_city ?? "",
         detected_language: res?.detected_language ?? "en",
         ip_detected_city: res?.ip_detected_city ?? "",
-        extracted_job_titles: res?.extracted_job_titles ?? null,
+        extracted_job_titles: res?.extracted_job_titles ?? [],
         info_confirmed: false,
         user_id: res?.user_id ?? undefined,
       })
