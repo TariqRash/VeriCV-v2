@@ -80,7 +80,7 @@ WSGI_APPLICATION = "core.wsgi.application"
 # Database - Supabase PostgreSQL Configuration
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-SUPABASE_DB_URL = os.getenv("SUPABASE_POSTGRES_URL_NON_POOLING")
+SUPABASE_DB_URL = os.getenv("SUPABASE_POSTGRES_URL_NON_POOLING") or os.getenv("SUPABASE_POSTGRES_URL")
 
 if SUPABASE_DB_URL:
     # Parse Supabase connection URL
@@ -88,15 +88,20 @@ if SUPABASE_DB_URL:
     DATABASES = {
         "default": dj_database_url.config(
             default=SUPABASE_DB_URL,
-            conn_max_age=60,  # 1 minute to prevent connection buildup
+            conn_max_age=30,  # Reduced to 30 seconds to release connections faster
             conn_health_checks=True,
         )
     }
-    # Add OPTIONS after parsing the URL
     DATABASES['default']['OPTIONS'] = {
-        'connect_timeout': 10,
-        'options': '-c statement_timeout=30000',  # 30 second timeout
+        'connect_timeout': 5,  # Reduced to 5 seconds for faster failure
+        'options': '-c statement_timeout=10000 -c idle_in_transaction_session_timeout=10000',  # 10 second timeouts
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
     }
+    if not DEBUG:
+        DATABASES['default']['CONN_MAX_AGE'] = 0
 else:
     # Fallback to individual Supabase env vars
     DATABASES = {
@@ -109,10 +114,14 @@ else:
             "PORT": "5432",
             "OPTIONS": {
                 "sslmode": "require",
-                "connect_timeout": 10,
-                "options": "-c statement_timeout=30000"
+                "connect_timeout": 5,
+                "options": "-c statement_timeout=10000 -c idle_in_transaction_session_timeout=10000",
+                'keepalives': 1,
+                'keepalives_idle': 30,
+                'keepalives_interval': 10,
+                'keepalives_count': 5,
             },
-            "CONN_MAX_AGE": 60,
+            "CONN_MAX_AGE": 0 if not DEBUG else 30,
         }
     }
 
