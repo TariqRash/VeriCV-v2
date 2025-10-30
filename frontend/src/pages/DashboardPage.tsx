@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { User, FileText, Brain, Calendar, TrendingUp, Eye, Plus, BarChart3, Loader2 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useLanguage } from "@/context/LanguageContext"
-import api from "@/api/http"
+import { supabaseHelpers } from "@/lib/supabase"
 
 type Assessment = {
   id: number
@@ -35,30 +35,33 @@ const DashboardPage = () => {
       try {
         setLoading(true)
 
-        const { data: results } = await api.get("quiz/results/")
+        const results = await supabaseHelpers.getAllResults()
 
         if (results && results.length > 0) {
           const formattedAssessments = results.map((result: any) => {
             let skills: string[] = []
 
-            // Try to extract skills from answers
-            if (result.answers && Array.isArray(result.answers)) {
-              skills = result.answers.map((ans: any) => ans.skill).filter((s: string) => s)
+            // Extract skills from quiz questions
+            if (result.quiz_quiz?.quiz_question) {
+              skills = result.quiz_quiz.quiz_question.map((q: any) => q.skill || q.topic).filter((s: string) => s)
             }
 
-            // Fallback to quiz questions if available
-            if (skills.length === 0 && result.quiz?.questions) {
-              skills = result.quiz.questions.map((q: any) => q.skill || q.topic).filter((s: string) => s)
+            // Parse answers if stored as JSON
+            let answers = []
+            try {
+              answers = typeof result.answers === "string" ? JSON.parse(result.answers) : result.answers || []
+            } catch (e) {
+              console.error("[v0] Failed to parse answers:", e)
             }
 
             return {
               id: result.id,
               date: result.completed_at || result.created_at,
-              title: result.quiz?.title || result.quiz_title || "Assessment",
+              title: result.quiz_quiz?.title || "Assessment",
               score: Math.round(result.score || 0),
-              skills: [...new Set(skills)], // Remove duplicates
+              skills: [...new Set(skills)],
               status: "completed",
-              feedback: result.feedback?.content,
+              feedback: result.feedback,
             }
           })
 
