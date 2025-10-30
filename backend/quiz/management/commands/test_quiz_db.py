@@ -53,27 +53,23 @@ class Command(BaseCommand):
                 question = Question.objects.create(
                     quiz=test_quiz,
                     text=f'Test question {i+1}?',
-                    option_a='Option A',
-                    option_b='Option B',
-                    option_c='Option C',
-                    option_d='Option D',
-                    correct_answer=0,
-                    skill=f'Skill {i+1}'
+                    options=['Option A', 'Option B', 'Option C', 'Option D'],
+                    correct_answer=0
                 )
                 self.stdout.write(self.style.SUCCESS(f'   ✓ Created question {i+1} with ID: {question.id}'))
             
             # Create test result
             test_answers = [
-                {"question_id": 1, "user_answer": 0, "correct_answer": 0, "is_correct": True, "skill": "Skill 1"},
-                {"question_id": 2, "user_answer": 1, "correct_answer": 0, "is_correct": False, "skill": "Skill 2"},
-                {"question_id": 3, "user_answer": 0, "correct_answer": 0, "is_correct": True, "skill": "Skill 3"}
+                {"question": "Test question 1?", "answer": 0, "isCorrect": True, "skill": "General"},
+                {"question": "Test question 2?", "answer": 1, "isCorrect": False, "skill": "General"},
+                {"question": "Test question 3?", "answer": 0, "isCorrect": True, "skill": "General"}
             ]
             
             test_result = Result.objects.create(
                 user=test_user,
                 quiz=test_quiz,
                 score=66.67,
-                answers=json.dumps(test_answers)
+                answers=test_answers  # Pass as list, Django will handle JSON serialization
             )
             self.stdout.write(self.style.SUCCESS(f'   ✓ Created result with ID: {test_result.id}'))
             
@@ -88,8 +84,15 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f'   ✓ Retrieved result with score: {retrieved_result.score}%'))
             
             # Parse answers JSON
-            answers_data = json.loads(retrieved_result.answers)
+            answers_data = retrieved_result.answers
+            if isinstance(answers_data, str):
+                answers_data = json.loads(answers_data)
             self.stdout.write(self.style.SUCCESS(f'   ✓ Parsed {len(answers_data)} answers from JSON'))
+            
+            # Verify question options
+            first_question = retrieved_questions.first()
+            self.stdout.write(self.style.SUCCESS(f'   ✓ Question options: {first_question.options}'))
+            self.stdout.write(self.style.SUCCESS(f'   ✓ Correct answer index: {first_question.correct_answer}'))
             
             # Clean up test data
             self.stdout.write('\n4. Cleaning up test data...')
