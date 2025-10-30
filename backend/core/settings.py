@@ -53,6 +53,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "core.middleware.CloseDBConnectionMiddleware",  # Add DB connection cleanup
 ]
 
 ROOT_URLCONF = "core.urls"
@@ -79,37 +80,45 @@ WSGI_APPLICATION = "core.wsgi.application"
 # Database - Supabase PostgreSQL Configuration
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Try Supabase connection first, fallback to legacy env vars
-SUPABASE_DB_URL = os.getenv("SUPABASE_POSTGRES_URL_NON_POOLING") or os.getenv("SUPABASE_POSTGRES_URL")
+SUPABASE_DB_URL = os.getenv("SUPABASE_POSTGRES_URL_NON_POOLING")
 
 if SUPABASE_DB_URL:
     # Parse Supabase connection URL
-    # Format: postgresql://user:password@host:port/database
     import dj_database_url
     DATABASES = {
         "default": dj_database_url.config(
             default=SUPABASE_DB_URL,
-            conn_max_age=600,
+            conn_max_age=60,  # Reduced from 600 to prevent connection buildup
             conn_health_checks=True,
+            options={
+                'connect_timeout': 10,
+                'options': '-c statement_timeout=30000',  # 30 second timeout
+            }
         )
     }
+    DATABASES['default']['CONN_MAX_AGE'] = 60
+    DATABASES['default']['OPTIONS'] = {
+        'connect_timeout': 10,
+        'options': '-c statement_timeout=30000'
+    }
 else:
-    # Fallback to individual Supabase env vars or legacy configuration
+    # Fallback to individual Supabase env vars
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("SUPABASE_POSTGRES_DATABASE") or os.getenv("DB_NAME", "django"),
-            "USER": os.getenv("SUPABASE_POSTGRES_USER") or os.getenv("DB_USER", "django"),
-            "PASSWORD": os.getenv("SUPABASE_POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD", ""),
-            "HOST": os.getenv("SUPABASE_POSTGRES_HOST") or os.getenv("DB_HOST", "localhost"),
-            "PORT": os.getenv("DB_PORT", "5432"),
+            "NAME": os.getenv("SUPABASE_POSTGRES_DATABASE"),
+            "USER": os.getenv("SUPABASE_POSTGRES_USER"),
+            "PASSWORD": os.getenv("SUPABASE_POSTGRES_PASSWORD"),
+            "HOST": os.getenv("SUPABASE_POSTGRES_HOST"),
+            "PORT": "5432",
             "OPTIONS": {
-                "sslmode": "require",  # Supabase requires SSL
+                "sslmode": "require",
+                "connect_timeout": 10,
+                "options": "-c statement_timeout=30000"
             },
+            "CONN_MAX_AGE": 60,
         }
     }
-
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
