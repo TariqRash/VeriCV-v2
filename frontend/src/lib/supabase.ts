@@ -28,21 +28,19 @@ export const supabaseHelpers = {
     extracted_city: string
     detected_language?: string
     ip_detected_city: string
-    extracted_job_titles?: any
+    extracted_job_titles: any // Made required, not optional
     info_confirmed: boolean
     user_id?: number
   }) {
     const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from("cv_cv")
-      .insert([
-        {
-          ...cvData,
-          uploaded_at: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single()
+
+    const dataToInsert = {
+      ...cvData,
+      extracted_job_titles: Array.isArray(cvData.extracted_job_titles) ? cvData.extracted_job_titles : [],
+      uploaded_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase.from("cv_cv").insert([dataToInsert]).select().single()
 
     if (error) {
       console.error("[v0] Failed to save CV to Supabase:", error)
