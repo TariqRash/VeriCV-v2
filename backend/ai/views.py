@@ -127,25 +127,28 @@ def submit_answers_view(request):
     Body: { "quiz_id": <int>, "cv_id": <int>, "answers": [...] }
     Responds with score, result_id, quiz_id, and feedback
     """
+    logger.critical("=" * 80)
+    logger.critical("[v0] SUBMIT_ANSWERS_VIEW CALLED - REQUEST RECEIVED")
+    logger.critical(f"[v0] Method: {request.method}")
+    logger.critical(f"[v0] Path: {request.path}")
+    logger.critical(f"[v0] Content-Type: {request.content_type}")
+    logger.critical("=" * 80)
+    
     if request.method != "POST":
+        logger.error(f"[v0] Invalid method: {request.method}")
         return JsonResponse({"error": "Invalid request method."}, status=400)
 
     try:
         body = request.body.decode("utf-8") or "{}"
+        logger.critical(f"[v0] Raw body length: {len(body)} chars")
+        
         data = json.loads(body)
         answers = data.get("answers", [])
         quiz_id = data.get("quiz_id")
         cv_id = data.get("cv_id")
 
-        logger.info(f"[v0] === SUBMIT ANSWERS START ===")
-        logger.info(f"[v0] quiz_id: {quiz_id}, cv_id: {cv_id}, answers count: {len(answers)}")
-
-        if isinstance(answers, dict):
-            answers_list = [{"question": q, "answer": a} for q, a in answers.items()]
-        elif isinstance(answers, list):
-            answers_list = answers
-        else:
-            answers_list = []
+        logger.critical(f"[v0] === SUBMIT ANSWERS START ===")
+        logger.critical(f"[v0] quiz_id: {quiz_id}, cv_id: {cv_id}, answers count: {len(answers)}")
 
         quiz_obj = None
         cv_obj = None
@@ -173,7 +176,7 @@ def submit_answers_view(request):
             )
             logger.info(f"[v0] Created new quiz: {quiz_obj.id}")
             
-            for idx, ans in enumerate(answers_list):
+            for idx, ans in enumerate(answers):
                 correct_ans = ans.get('correctAnswer', 0)
                 # Ensure it's an integer
                 if isinstance(correct_ans, str):
@@ -188,14 +191,14 @@ def submit_answers_view(request):
                     options=ans.get('options', []),
                     correct_answer=correct_ans
                 )
-            logger.info(f"[v0] Created {len(answers_list)} questions for quiz {quiz_obj.id}")
+            logger.info(f"[v0] Created {len(answers)} questions for quiz {quiz_obj.id}")
 
         if quiz_obj:
             questions = list(quiz_obj.questions.all().order_by('id'))
             logger.info(f"[v0] Found {len(questions)} questions in quiz")
             
             # Mark each answer as correct or incorrect
-            for i, ans in enumerate(answers_list):
+            for i, ans in enumerate(answers):
                 if i < len(questions):
                     question = questions[i]
                     user_answer = ans.get('answer')
@@ -216,8 +219,8 @@ def submit_answers_view(request):
                     ans['isCorrect'] = False
                     logger.warning(f"[v0] No question found for answer {i}")
 
-        total_questions = len(answers_list)
-        correct_count = sum(1 for ans in answers_list if ans.get('isCorrect') == True)
+        total_questions = len(answers)
+        correct_count = sum(1 for ans in answers if ans.get('isCorrect') == True)
         
         score = round((correct_count / total_questions * 100)) if total_questions > 0 else 0
         logger.info(f"[v0] CALCULATED SCORE: {score}% ({correct_count}/{total_questions} correct)")
@@ -231,12 +234,12 @@ def submit_answers_view(request):
                     quiz=quiz_obj,
                     user=request.user,
                     score=score,
-                    answers=answers_list
+                    answers=answers
                 )
                 logger.info(f"[v0] ✓ CREATED RESULT WITH ID: {result_obj.id}")
                 
                 # Generate AI feedback
-                wrong_answers = [ans for ans in answers_list if not ans.get('isCorrect')]
+                wrong_answers = [ans for ans in answers if not ans.get('isCorrect')]
                 feedback_text = generate_feedback_from_ai(wrong_answers, score)
                 logger.info(f"[v0] Generated feedback: {len(feedback_text)} chars")
                 
@@ -261,19 +264,20 @@ def submit_answers_view(request):
             "feedback": feedback_text,
             "correct": correct_count,
             "total": total_questions,
-            "answers": answers_list
+            "answers": answers
         }
         
-        logger.info(f"[v0] === RESPONSE DATA ===")
-        logger.info(f"[v0] result_id: {response_data['result_id']}")
-        logger.info(f"[v0] quiz_id: {response_data['quiz_id']}")
-        logger.info(f"[v0] score: {response_data['score']}")
-        logger.info(f"[v0] === SUBMIT ANSWERS END ===")
+        logger.critical(f"[v0] === RESPONSE DATA ===")
+        logger.critical(f"[v0] result_id: {response_data['result_id']}")
+        logger.critical(f"[v0] quiz_id: {response_data['quiz_id']}")
+        logger.critical(f"[v0] score: {response_data['score']}")
+        logger.critical(f"[v0] === SUBMIT ANSWERS END ===")
+        logger.critical("=" * 80)
         
         return JsonResponse(response_data, status=200)
         
     except Exception as e:
-        logger.error(f"[v0] ✗ FATAL ERROR submitting answers: {e}", exc_info=True)
+        logger.critical(f"[v0] ✗ FATAL ERROR submitting answers: {e}", exc_info=True)
         return JsonResponse({"error": f"Failed to submit answers: {str(e)}"}, status=500)
 
 # -----------------
