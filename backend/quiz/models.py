@@ -14,7 +14,7 @@ class Question(models.Model):
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='questions')
     text = models.TextField()
     options = models.JSONField()
-    correct_answer = models.CharField(max_length=1)
+    correct_answer = models.IntegerField(default=0)
 
     def __str__(self):
         return f"Q: {self.text[:50]}"
