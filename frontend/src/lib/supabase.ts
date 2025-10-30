@@ -21,17 +21,28 @@ export function getSupabaseClient() {
 export const supabaseHelpers = {
   // CV Operations
   async saveCV(cvData: {
-    filename: string
+    title: string
+    file: string
     extracted_name: string
     extracted_phone: string
     extracted_city: string
+    detected_language?: string
     ip_detected_city: string
+    extracted_job_titles?: any
     info_confirmed: boolean
-    backend_cv_id: number
-    uploaded_at: string
+    user_id?: number
   }) {
     const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from("cv_cv").insert([cvData]).select().single()
+    const { data, error } = await supabase
+      .from("cv_cv")
+      .insert([
+        {
+          ...cvData,
+          uploaded_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single()
 
     if (error) {
       console.error("[v0] Failed to save CV to Supabase:", error)
