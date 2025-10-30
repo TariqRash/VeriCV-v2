@@ -88,18 +88,14 @@ if SUPABASE_DB_URL:
     DATABASES = {
         "default": dj_database_url.config(
             default=SUPABASE_DB_URL,
-            conn_max_age=60,  # Reduced from 600 to prevent connection buildup
+            conn_max_age=60,  # 1 minute to prevent connection buildup
             conn_health_checks=True,
-            options={
-                'connect_timeout': 10,
-                'options': '-c statement_timeout=30000',  # 30 second timeout
-            }
         )
     }
-    DATABASES['default']['CONN_MAX_AGE'] = 60
+    # Add OPTIONS after parsing the URL
     DATABASES['default']['OPTIONS'] = {
         'connect_timeout': 10,
-        'options': '-c statement_timeout=30000'
+        'options': '-c statement_timeout=30000',  # 30 second timeout
     }
 else:
     # Fallback to individual Supabase env vars
