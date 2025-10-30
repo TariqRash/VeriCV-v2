@@ -147,30 +147,66 @@ def submit_answers_view(request):
         else:
             answers_list = []
 
-        # Get quiz questions to validate answers
         quiz_obj = None
+        cv_obj = None
+        
+        if cv_id:
+            try:
+                cv_obj = CV.objects.get(id=cv_id)
+                logger.info(f"[v0] Found CV: {cv_obj.id}")
+            except CV.DoesNotExist:
+                logger.warning(f"[v0] CV {cv_id} not found")
+        
         if quiz_id:
             try:
                 quiz_obj = Quiz.objects.get(id=quiz_id)
-                questions = list(quiz_obj.questions.all())
-                
-                # Mark each answer as correct or incorrect
-                for i, ans in enumerate(answers_list):
-                    if i < len(questions):
-                        question = questions[i]
-                        user_answer = ans.get('answer')
-                        correct_answer = question.correct_answer
-                        
-                        # Compare answers (handle both index and text)
-                        if isinstance(user_answer, int):
-                            ans['isCorrect'] = (user_answer == int(correct_answer))
-                        else:
-                            ans['isCorrect'] = (str(user_answer) == str(correct_answer))
-                        
-                        ans['correctAnswer'] = correct_answer
-                        logger.info(f"[v0] Q{i+1}: User={user_answer}, Correct={correct_answer}, IsCorrect={ans['isCorrect']}")
+                logger.info(f"[v0] Found existing quiz: {quiz_obj.id}")
             except Quiz.DoesNotExist:
-                logger.warning(f"[v0] Quiz {quiz_id} not found, cannot validate answers")
+                logger.warning(f"[v0] Quiz {quiz_id} not found")
+        
+        # If no quiz found, create one
+        if not quiz_obj and request.user.is_authenticated:
+            quiz_obj = Quiz.objects.create(
+                user=request.user,
+                title=f"Quiz for {cv_obj.title if cv_obj else 'CV'}",
+                cv=cv_obj
+            )
+            logger.info(f"[v0] Created new quiz: {quiz_obj.id}")
+            
+            # Create questions from answers
+            for idx, ans in enumerate(answers_list):
+                Question.objects.create(
+                    quiz=quiz_obj,
+                    text=ans.get('question', f'Question {idx+1}'),
+                    options=ans.get('options', []),
+                    correct_answer=str(ans.get('correctAnswer', 0))
+                )
+            logger.info(f"[v0] Created {len(answers_list)} questions for quiz {quiz_obj.id}")
+
+        # Get quiz questions to validate answers
+        if quiz_obj:
+            questions = list(quiz_obj.questions.all())
+            logger.info(f"[v0] Found {len(questions)} questions in quiz")
+            
+            # Mark each answer as correct or incorrect
+            for i, ans in enumerate(answers_list):
+                if i < len(questions):
+                    question = questions[i]
+                    user_answer = ans.get('answer')
+                    correct_answer = question.correct_answer
+                    
+                    # Compare answers (handle both index and text)
+                    if isinstance(user_answer, int):
+                        ans['isCorrect'] = (user_answer == int(correct_answer))
+                    else:
+                        ans['isCorrect'] = (str(user_answer) == str(correct_answer))
+                    
+                    ans['correctAnswer'] = correct_answer
+                    logger.info(f"[v0] Q{i+1}: User={user_answer}, Correct={correct_answer}, IsCorrect={ans['isCorrect']}")
+                else:
+                    # No question to validate against, mark as incorrect
+                    ans['isCorrect'] = False
+                    logger.warning(f"[v0] No question found for answer {i}")
 
         total_questions = len(answers_list)
         correct_count = sum(1 for ans in answers_list if ans.get('isCorrect') == True)
@@ -183,11 +219,6 @@ def submit_answers_view(request):
         
         if request.user.is_authenticated:
             try:
-                cv = None
-                
-                if cv_id:
-                    cv = CV.objects.get(id=cv_id, user=request.user)
-                
                 result_obj = Result.objects.create(
                     quiz=quiz_obj,
                     user=request.user,
@@ -201,27 +232,31 @@ def submit_answers_view(request):
                 feedback_text = generate_feedback_from_ai(wrong_answers, score)
                 
                 # Save feedback
-                Feedback.objects.create(
-                    user=request.user,
-                    cv=cv,
-                    result=result_obj,
-                    content=feedback_text,
-                    rating=5 if score >= 80 else 4 if score >= 70 else 3
-                )
-                logger.info(f"[v0] Created feedback for result {result_obj.id}")
+                if cv_obj:
+                    Feedback.objects.create(
+                        user=request.user,
+                        cv=cv_obj,
+                        result=result_obj,
+                        content=feedback_text,
+                        rating=5 if score >= 80 else 4 if score >= 70 else 3
+                    )
+                    logger.info(f"[v0] Created feedback for result {result_obj.id}")
                 
             except Exception as e:
                 logger.error(f"[v0] Error saving result: {e}", exc_info=True)
 
-        return JsonResponse({
+        response_data = {
             "score": score,
             "result_id": result_obj.id if result_obj else None,
-            "quiz_id": quiz_id,
+            "quiz_id": quiz_obj.id if quiz_obj else None,
             "feedback": feedback_text,
             "correct": correct_count,
             "total": total_questions,
             "answers": answers_list  # Include validated answers
-        }, status=200)
+        }
+        
+        logger.info(f"[v0] Returning response: {response_data}")
+        return JsonResponse(response_data, status=200)
         
     except Exception as e:
         logger.error(f"[v0] Error submitting answers: {e}", exc_info=True)

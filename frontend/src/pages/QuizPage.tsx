@@ -109,8 +109,10 @@ export default function QuizPage() {
   const submit = async () => {
     setStatus("submitting")
     try {
+      const quizId = localStorage.getItem("current_quiz_id")
+
       const payload = {
-        quiz_id: localStorage.getItem("current_quiz_id"),
+        quiz_id: quizId ? Number.parseInt(quizId) : null,
         cv_id: cvId,
         answers: questions.map((q, idx) => ({
           question: q.question,
@@ -126,15 +128,22 @@ export default function QuizPage() {
       const response = await submitAnswers(payload)
       console.log("[v0] Submit response:", response)
 
-      if (response.result_id) {
-        localStorage.setItem("last_result_id", String(response.result_id))
-        console.log("[v0] Stored result_id:", response.result_id)
+      if (!response.result_id) {
+        console.error("[v0] No result_id in response:", response)
+        throw new Error("Server did not return a result ID")
       }
+
+      localStorage.setItem("last_result_id", String(response.result_id))
+      if (response.quiz_id) {
+        localStorage.setItem("current_quiz_id", String(response.quiz_id))
+      }
+      console.log("[v0] Stored result_id:", response.result_id, "quiz_id:", response.quiz_id)
 
       nav(`/results?result_id=${response.result_id}`, {
         state: {
           result_id: response.result_id,
           quiz_id: response.quiz_id,
+          score: response.score,
         },
       })
 
