@@ -1,24 +1,23 @@
 "use client"
 
 import type React from "react"
-
-// src/pages/QuizPage.tsx
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Clock, ArrowLeft, ArrowRight, UploadIcon } from "lucide-react"
-import { aiGenerateFromCVId, aiGenerateFromFileSmart, submitAnswers } from "@/api/endpoints"
-import { useNavigate } from "react-router-dom" // ✅ import this
+import { aiGenerateFromCVId, aiGenerateFromFileSmart } from "@/api/endpoints"
+import { useNavigate } from "react-router-dom"
+import { getSupabaseClient } from "@/lib/supabase"
 
 type Question = {
   id?: number | string
   question: string
   options?: string[]
-  correctAnswer?: number // optional; backend may not return it
+  correctAnswer?: number
   skill?: string
   topic?: string
-  category?: "technical" | "soft" | string // ✅ include category
+  category?: "technical" | "soft" | string
 }
 
 type QuizState = "generating" | "ready" | "submitting" | "completed" | "error"
@@ -31,11 +30,10 @@ export default function QuizPage() {
   const [answers, setAnswers] = useState<Record<number, number | string>>({})
   const [timeLeft, setTimeLeft] = useState(10 * 60) // 10 minutes
   const [pdfFile, setPdfFile] = useState<File | null>(null)
-  const nav = useNavigate() // ✅ now available
+  const nav = useNavigate()
 
   const cvId = useMemo(() => localStorage.getItem("last_cv_id"), [])
 
-  // helper: normalize API shapes
   function normalize(raw: any): Question[] {
     if (!raw) return []
     const arr = Array.isArray(raw) ? raw : raw.questions || []
@@ -45,7 +43,7 @@ export default function QuizPage() {
       options: Array.isArray(q.options) ? q.options : undefined,
       correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
       skill: q.skill ?? q.topic ?? undefined,
-      category: q.category ?? undefined, // ✅ safe
+      category: q.category ?? undefined,
     }))
   }
 
@@ -109,48 +107,93 @@ export default function QuizPage() {
   const submit = async () => {
     setStatus("submitting")
     try {
-      const quizId = localStorage.getItem("current_quiz_id")
+      const supabase = getSupabaseClient()
 
-      const payload = {
-        quiz_id: quizId ? Number.parseInt(quizId) : null,
-        cv_id: cvId,
-        answers: questions.map((q, idx) => ({
-          question: q.question,
-          answer: answers[idx],
-          correctAnswer: typeof q.correctAnswer === "number" ? q.correctAnswer : undefined,
-          options: q.options,
-          skill: q.skill || "General",
-          category: q.category || "technical",
-        })),
+      // Create quiz record
+      const { data: quizData, error: quizError } = await supabase
+        .from("quiz_quiz")
+        .insert({
+          cv_id: cvId ? Number.parseInt(cvId) : null,
+          title: "Skill Assessment Quiz",
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (quizError) {
+        console.error("[v0] Error creating quiz:", quizError)
+        throw new Error("Failed to create quiz")
       }
 
-      console.log("[v0] Submitting quiz with payload:", payload)
-      const response = await submitAnswers(payload)
-      console.log("[v0] Submit response:", response)
+      console.log("[v0] Created quiz:", quizData)
 
-      if (!response.result_id) {
-        console.error("[v0] No result_id in response:", response)
-        throw new Error("Server did not return a result ID")
+      // Create question records
+      const questionRecords = questions.map((q, idx) => ({
+        quiz_id: quizData.id,
+        text: q.question,
+        options: q.options || [],
+        correct_answer: typeof q.correctAnswer === "number" ? q.correctAnswer : 0,
+      }))
+
+      const { data: questionsData, error: questionsError } = await supabase
+        .from("quiz_question")
+        .insert(questionRecords)
+        .select()
+
+      if (questionsError) {
+        console.error("[v0] Error creating questions:", questionsError)
+        throw new Error("Failed to create questions")
       }
 
-      localStorage.setItem("last_result_id", String(response.result_id))
-      if (response.quiz_id) {
-        localStorage.setItem("current_quiz_id", String(response.quiz_id))
-      }
-      console.log("[v0] Stored result_id:", response.result_id, "quiz_id:", response.quiz_id)
+      console.log("[v0] Created questions:", questionsData)
 
-      nav(`/results?result_id=${response.result_id}`, {
+      // Calculate score and create result
+      const answersData = questions.map((q, idx) => ({
+        question: q.question,
+        userAnswer: answers[idx],
+        correctAnswer: q.correctAnswer,
+        isCorrect: answers[idx] === q.correctAnswer,
+        skill: q.skill || "General",
+        category: q.category || "technical",
+      }))
+
+      const correctCount = answersData.filter((a) => a.isCorrect).length
+      const score = (correctCount / questions.length) * 100
+
+      const { data: resultData, error: resultError } = await supabase
+        .from("quiz_result")
+        .insert({
+          quiz_id: quizData.id,
+          score: score,
+          answers: answersData,
+          completed_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (resultError) {
+        console.error("[v0] Error creating result:", resultError)
+        throw new Error("Failed to save result")
+      }
+
+      console.log("[v0] Created result:", resultData)
+
+      // Navigate to results page
+      localStorage.setItem("last_result_id", String(resultData.id))
+      localStorage.setItem("current_quiz_id", String(quizData.id))
+
+      nav(`/results?result_id=${resultData.id}`, {
         state: {
-          result_id: response.result_id,
-          quiz_id: response.quiz_id,
-          score: response.score,
+          result_id: resultData.id,
+          quiz_id: quizData.id,
+          score: score,
         },
       })
 
       setStatus("completed")
     } catch (e: any) {
       console.error("[v0] Submit error:", e)
-      setError(e?.response?.data?.error || e?.message || "Failed to submit answers.")
+      setError(e?.message || "Failed to submit answers.")
       setStatus("error")
     }
   }

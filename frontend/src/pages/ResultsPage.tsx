@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Trophy, TrendingUp, Target, BookOpen, ArrowRight, Download, Share, Loader2, Home } from "lucide-react"
 import { useLanguage } from "@/context/LanguageContext"
-import api from "@/api/http"
+import { getSupabaseClient } from "@/lib/supabase"
 
 type SkillResult = {
   skill: string
@@ -42,8 +42,6 @@ export default function ResultsPage() {
       try {
         setLoading(true)
         console.log("[v0] ResultsPage: Starting fetch...")
-        console.log("[v0] Location state:", location.state)
-        console.log("[v0] Location search:", location.search)
 
         const urlParams = new URLSearchParams(location.search)
         const resultIdFromUrl = urlParams.get("result_id")
@@ -52,31 +50,26 @@ export default function ResultsPage() {
 
         const resultId = resultIdFromUrl || resultIdFromState || resultIdFromStorage
 
-        console.log("[v0] result_id from URL:", resultIdFromUrl)
-        console.log("[v0] result_id from state:", resultIdFromState)
-        console.log("[v0] result_id from storage:", resultIdFromStorage)
         console.log("[v0] Final result_id:", resultId)
 
         if (!resultId || resultId === "null" || resultId === "undefined") {
-          console.log("[v0] No valid result_id, fetching latest results...")
-          const { data } = await api.get("quiz/results/")
-          console.log("[v0] Latest results:", data)
-
-          if (data && data.length > 0) {
-            const latestResult = data[0]
-            console.log("[v0] Using latest result:", latestResult)
-            processResultData(latestResult)
-          } else {
-            console.log("[v0] No results found")
-            setError("No results found")
-          }
+          setError("No results found")
           setLoading(false)
           return
         }
 
-        console.log("[v0] ResultsPage: Fetching result by ID:", resultId)
-        const { data } = await api.get(`quiz/results/${resultId}/`)
-        console.log("[v0] ResultsPage: Received data from API:", data)
+        const supabase = getSupabaseClient()
+
+        const { data, error } = await supabase.from("quiz_result").select("*").eq("id", resultId).single()
+
+        if (error) {
+          console.error("[v0] Error fetching result:", error)
+          setError("Failed to load results")
+          setLoading(false)
+          return
+        }
+
+        console.log("[v0] Fetched result from Supabase:", data)
 
         if (data) {
           processResultData(data)
@@ -85,8 +78,7 @@ export default function ResultsPage() {
         }
       } catch (err: any) {
         console.error("[v0] ResultsPage: Error:", err)
-        console.error("[v0] Error response:", err?.response?.data)
-        setError(err?.response?.data?.error || err?.response?.data?.detail || "Failed to load results")
+        setError(err?.message || "Failed to load results")
       } finally {
         setLoading(false)
       }
