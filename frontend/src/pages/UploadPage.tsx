@@ -106,6 +106,19 @@ export default function UploadPage() {
 
       if (!backendCvId) throw new Error("Upload succeeded but server did not return cv_id.")
 
+      let jobTitles = []
+      if (res?.extracted_job_titles) {
+        if (Array.isArray(res.extracted_job_titles)) {
+          jobTitles = res.extracted_job_titles
+        } else if (typeof res.extracted_job_titles === "string") {
+          try {
+            jobTitles = JSON.parse(res.extracted_job_titles)
+          } catch {
+            jobTitles = [res.extracted_job_titles]
+          }
+        }
+      }
+
       const cvData = await supabaseHelpers.saveCV({
         title: res?.filename ?? uploadedFile.name,
         file: res?.file_path ?? uploadedFile.name,
@@ -114,7 +127,7 @@ export default function UploadPage() {
         extracted_city: res?.extracted_city ?? "",
         detected_language: res?.detected_language ?? "en",
         ip_detected_city: res?.ip_detected_city ?? "",
-        extracted_job_titles: res?.extracted_job_titles ?? [],
+        extracted_job_titles: jobTitles, // Always an array
         info_confirmed: false,
         user_id: res?.user_id ?? undefined,
       })
