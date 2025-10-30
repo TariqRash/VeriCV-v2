@@ -1,8 +1,6 @@
 "use client"
 
 import type React from "react"
-
-// src/pages/UploadPage.tsx
 import { useState, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +9,7 @@ import { useNavigate } from "react-router-dom"
 import { useToast } from "@/hooks/use-toast"
 import { uploadCV } from "@/api/endpoints"
 import { useLanguage } from "@/context/LanguageContext"
+import { supabaseHelpers } from "@/lib/supabase"
 
 type UploadState = "idle" | "uploading" | "success" | "error" | "unauth"
 
@@ -103,15 +102,27 @@ export default function UploadPage() {
 
     try {
       const res = await uploadCV(uploadedFile)
-      const id = res?.cv_id ?? res?.id ?? res?.cvId
-      const name = res?.filename ?? uploadedFile.name
-      if (!id) throw new Error("Upload succeeded but server did not return cv_id.")
+      const backendCvId = res?.cv_id ?? res?.id ?? res?.cvId
 
+      if (!backendCvId) throw new Error("Upload succeeded but server did not return cv_id.")
+
+      const cvData = await supabaseHelpers.saveCV({
+        filename: res?.filename ?? uploadedFile.name,
+        extracted_name: res?.extracted_name ?? "",
+        extracted_phone: res?.extracted_phone ?? "",
+        extracted_city: res?.extracted_city ?? "",
+        ip_detected_city: res?.ip_detected_city ?? "",
+        info_confirmed: false,
+        backend_cv_id: backendCvId,
+        uploaded_at: new Date().toISOString(),
+      })
+
+      const id = cvData.id
       localStorage.setItem("last_cv_id", String(id))
       window.dispatchEvent(new StorageEvent("storage", { key: "last_cv_id", newValue: String(id) }))
 
       setCvId(id)
-      setServerFileName(name)
+      setServerFileName(cvData.filename)
       setState("success")
 
       toast({
