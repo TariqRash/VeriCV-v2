@@ -37,12 +37,12 @@ INSTALLED_APPS = [
     'users',
     'cv',
     'feedback',
-    'quiz',
     'ai',
 
     'corsheaders',
     'core',
-    'healthcheck',]
+    'healthcheck',
+]
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -53,7 +53,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "core.middleware.CloseDBConnectionMiddleware",  # Add DB connection cleanup
 ]
 
 ROOT_URLCONF = "core.urls"
@@ -77,53 +76,13 @@ TEMPLATES = [
 WSGI_APPLICATION = "core.wsgi.application"
 
 
-# Database - Supabase PostgreSQL Configuration
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-SUPABASE_DB_URL = os.getenv("SUPABASE_POSTGRES_URL_NON_POOLING") or os.getenv("SUPABASE_POSTGRES_URL")
-
-if SUPABASE_DB_URL:
-    # Parse Supabase connection URL
-    import dj_database_url
-    DATABASES = {
-        "default": dj_database_url.config(
-            default=SUPABASE_DB_URL,
-            conn_max_age=30,  # Reduced to 30 seconds to release connections faster
-            conn_health_checks=True,
-        )
+# Quiz data is stored in Supabase via REST API - no PostgreSQL connection needed
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-    DATABASES['default']['OPTIONS'] = {
-        'connect_timeout': 5,  # Reduced to 5 seconds for faster failure
-        'options': '-c statement_timeout=10000 -c idle_in_transaction_session_timeout=10000',  # 10 second timeouts
-        'keepalives': 1,
-        'keepalives_idle': 30,
-        'keepalives_interval': 10,
-        'keepalives_count': 5,
-    }
-    if not DEBUG:
-        DATABASES['default']['CONN_MAX_AGE'] = 0
-else:
-    # Fallback to individual Supabase env vars
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("SUPABASE_POSTGRES_DATABASE"),
-            "USER": os.getenv("SUPABASE_POSTGRES_USER"),
-            "PASSWORD": os.getenv("SUPABASE_POSTGRES_PASSWORD"),
-            "HOST": os.getenv("SUPABASE_POSTGRES_HOST"),
-            "PORT": "5432",
-            "OPTIONS": {
-                "sslmode": "require",
-                "connect_timeout": 5,
-                "options": "-c statement_timeout=10000 -c idle_in_transaction_session_timeout=10000",
-                'keepalives': 1,
-                'keepalives_idle': 30,
-                'keepalives_interval': 10,
-                'keepalives_count': 5,
-            },
-            "CONN_MAX_AGE": 0 if not DEBUG else 30,
-        }
-    }
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -217,7 +176,6 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-# Supabase Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("NEXT_PUBLIC_SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY") or os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
@@ -252,11 +210,6 @@ LOGGING = {
             'propagate': False,
         },
         'ai': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'quiz': {
             'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': False,
