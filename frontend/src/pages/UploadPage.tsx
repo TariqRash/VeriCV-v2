@@ -107,14 +107,16 @@ export default function UploadPage() {
       if (!backendCvId) throw new Error("Upload succeeded but server did not return cv_id.")
 
       const cvData = await supabaseHelpers.saveCV({
-        filename: res?.filename ?? uploadedFile.name,
+        title: res?.filename ?? uploadedFile.name,
+        file: res?.file_path ?? uploadedFile.name,
         extracted_name: res?.extracted_name ?? "",
         extracted_phone: res?.extracted_phone ?? "",
         extracted_city: res?.extracted_city ?? "",
+        detected_language: res?.detected_language ?? "en",
         ip_detected_city: res?.ip_detected_city ?? "",
+        extracted_job_titles: res?.extracted_job_titles ?? null,
         info_confirmed: false,
-        backend_cv_id: backendCvId,
-        uploaded_at: new Date().toISOString(),
+        user_id: res?.user_id ?? undefined,
       })
 
       const id = cvData.id
@@ -122,7 +124,7 @@ export default function UploadPage() {
       window.dispatchEvent(new StorageEvent("storage", { key: "last_cv_id", newValue: String(id) }))
 
       setCvId(id)
-      setServerFileName(cvData.filename)
+      setServerFileName(cvData.title)
       setState("success")
 
       toast({
